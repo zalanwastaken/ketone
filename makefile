@@ -1,0 +1,64 @@
+.PHONY: all run debug clean
+
+CC = gcc
+LD = gcc
+AS = nasm
+
+CFLAGS = -m64 -ffreestanding -pedantic -msse2 -fno-pie -fno-pic -fno-stack-protector -c
+LDFLAGS = -m64 -ffreestanding -fno-pie -fno-pic -no-pie -nostdlib -fno-stack-protector -Wl,--oformat=binary -T link.ld
+ASFLAGS = -f elf
+
+# ---- sources ----
+SRC_C   := $(shell find src/os/kernel -name "*.c")
+SRC_ASM := $(shell find src/os/kernel -name "*.asm")
+
+# ---- objects ----
+OBJ_C   := $(patsubst src/%.c, build/%.o, $(SRC_C))
+OBJ_ASM := $(patsubst src/%.asm, build/%.o, $(SRC_ASM))
+OBJS    := $(OBJ_C) $(OBJ_ASM)
+
+# ---- main target ----
+all: build/kernel.bin build/os.img
+
+# ---- compile C ----
+build/%.o: src/%.c
+	@mkdir -p $(dir $@)
+	@$(CC) $(CFLAGS) $< -o $@
+	@echo "CC $<"
+
+# ---- compile ASM ----
+build/%.o: src/%.asm
+	@mkdir -p $(dir $@)
+	@$(AS) $(ASFLAGS) $< -o $@
+	@echo "AS $<"
+
+# ---- link kernel ----
+build/kernel.bin: $(OBJS)
+	@$(LD) $(LDFLAGS) -o $@ $(OBJS)
+	@echo "LD $(OBJS)"
+
+# ---- bootloader ----
+build/bootloader.bin: src/os/bootloader.asm build/kernel.bin
+	@mkdir -p build
+	$(eval KSIZE := $(shell stat -c%s build/kernel.bin))
+	$(eval KSECTORS := $(shell echo $$(( ($(KSIZE) + 511) / 512 )) ))
+	@$(AS) -DSECTORS=$(KSECTORS) -f bin $< -o $@
+	@echo "AS $< (kernel size=$(KSIZE) bytes, $(KSECTORS) sectors)"
+
+# ---- disk image ----
+build/os.img: build/bootloader.bin build/kernel.bin
+	dd if=/dev/zero of=$@ bs=512 count=2880
+	dd if=build/bootloader.bin of=$@ conv=notrunc
+	dd if=build/kernel.bin of=$@ bs=1 seek=4096 conv=notrunc
+
+# ---- run ----
+run: all
+	qemu-system-x86_64 -drive format=raw,file=build/os.img -m 4G -serial stdio -audiodev alsa,id=snd0 -machine pcspk-audiodev=snd0 -vga qxl -machine pc
+
+# ---- debug ----
+debug: all
+	qemu-system-x86_64 -drive format=raw,file=build/os.img -m 4G -serial stdio -audiodev alsa,id=snd0 -machine pcspk-audiodev=snd0 -vga qxl -machine pc -s -S
+
+# ---- clean ----
+clean:
+	rm -rf build
