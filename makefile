@@ -4,7 +4,7 @@ CC = gcc
 LD = gcc
 AS = nasm
 
-CFLAGS = -m64 -ffreestanding -pedantic -msse2 -fno-pie -fno-pic -fno-stack-protector -c
+CFLAGS = -m64 -ffreestanding -pedantic -msse2 -mmmx -msse -fno-pie -fno-pic -fno-stack-protector -c
 LDFLAGS = -m64 -ffreestanding -fno-pie -fno-pic -no-pie -nostdlib -fno-stack-protector -Wl,--oformat=binary -T link.ld
 ASFLAGS = -f elf
 

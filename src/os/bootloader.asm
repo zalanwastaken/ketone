@@ -110,7 +110,7 @@ protected_mode:
 
     mov esp, 0x70000
 
-    call enable_SSE2
+    call enable_ISA_extentions
 
     mov esi, 0x1000
     mov edi, 0x120000
@@ -234,15 +234,16 @@ protected_mode:
     ; ------------------------------------------------
 
     jmp 0x10:long_mode
-
-enable_SSE2:
+enable_ISA_extentions:
     ; Check for CPUID first
     pushfd
     pop eax
+
     mov ecx, eax
-    xor eax, 1 << 21
+    xor eax, 1 << 21       ; Toggle ID bit
     push eax
     popfd
+
     pushfd
     pop eax
     xor eax, ecx
@@ -256,21 +257,29 @@ enable_SSE2:
     test edx, 1 << 26
     jz .no_sse2
 
-    ; Enable SSE
+    ; --------------------------------
+    ; Enable x87/MMX/SSE/SSE2
+    ; --------------------------------
+
     mov eax, cr0
-    and eax, ~(1 << 2)    ; CR0.EM = 0
-    or  eax, 1 << 1       ; CR0.MP = 1
+
+    and eax, ~(1 << 2)     ; CR0.EM = 0
+    or  eax,  (1 << 1)     ; CR0.MP = 1
+
     mov cr0, eax
 
-    ; Enable OS support for FXSAVE/FXRSTOR and SSE
     mov eax, cr4
-    or  eax, (1 << 9) | (1 << 10)   ; OSFXSR | OSXMMEXCPT
+
+    or eax, (1 << 9)       ; CR4.OSFXSR
+    or eax, (1 << 10)      ; CR4.OSXMMEXCPT
+
     mov cr4, eax
 
-    ; SSE2 is now usable
     ret
+
 .no_cpuid:
     jmp $
+
 .no_sse2:
     jmp $
 
