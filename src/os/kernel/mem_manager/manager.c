@@ -1,11 +1,13 @@
 #include "manager.h"
+#include "../io/serial/serial.h"
 
 heap_t *root_heap;
 
 void mem_manager_init(size_t size, uint32_t kernel_size){
     kernel_size *= 512;
 
-    root_heap = (heap_t*)(kernel_size+0x128);
+    uint64_t root_heap_start = kernel_size+0x120000+0x1024;
+    root_heap = (heap_t*)(root_heap_start);
     root_heap->max_size = size;
     root_heap->block_size = 512;
     root_heap->blocks = (allocation_t*)((uintptr_t)root_heap + sizeof(heap_t));
