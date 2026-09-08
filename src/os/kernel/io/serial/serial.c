@@ -35,7 +35,31 @@ void serial_print_hex(uint32_t val){
     }
 }
 
+void serial_print_dec(uint32_t value){
+    char buf[21]; // max uint64_t = 20 digits
+    int i = 20;
+
+    buf[i] = '\0';
+
+    if (value == 0) {
+        serial_print("0");
+        return;
+    }
+
+    while (value > 0) {
+        buf[--i] = '0' + (value % 10);
+        value /= 10;
+    }
+
+    serial_print(&buf[i]);
+}
+
 void serial_print_hexLN(uint32_t val){
     serial_print_hex(val);
+    serial_print("\n");
+}
+
+void serial_print_decLN(uint32_t val){
+    serial_print_dec(val);
     serial_print("\n");
 }
