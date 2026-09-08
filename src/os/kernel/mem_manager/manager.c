@@ -3,10 +3,10 @@
 
 heap_t *root_heap;
 
-void mem_manager_init(size_t size, uint32_t kernel_size){
-    kernel_size *= 512;
+void mem_manager_init(size_t size, uint32_t kernel_size_SECTORS){
+    kernel_size_SECTORS *= 512;
 
-    uint64_t root_heap_start = kernel_size+0x120000+0x1024;
+    uint64_t root_heap_start = kernel_size_SECTORS+0x120000;
     root_heap = (heap_t*)(root_heap_start);
     root_heap->max_size = size;
     root_heap->block_size = 512;
