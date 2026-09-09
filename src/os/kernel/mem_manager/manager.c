@@ -25,34 +25,45 @@ void* alloc(heap_t **heap, size_t size){
         return NULL;
     }
 
-    size_t got = 0;
+    uint64_t needed = (size + (*heap)->block_size - 1) / (*heap)->block_size; //? this is a truncating division
     int64_t start = -1; //? used -1 here because start cannot be in -ve so -1 here means no valid start was found
     uint64_t i = 0;
 
-    while ((*heap)->max_size/(*heap)->block_size > i){
-        if((*heap)->blocks[i].isAllocated == false){
-            if(start == -1){
-                start = i;
+    while ((*heap)->max_size / (*heap)->block_size > i){
+        if ((*heap)->blocks[i].isAllocated == false){
+            bool free = true;
+            for (uint64_t j = 0; j < needed; j++){
+                if ((*heap)->blocks[i + j].isAllocated){
+                    free = false;
+                    break;
+                }
             }
-            got++;
+
+            if (free){
+                start = i;
+                break;
+            }
+            i++;
         }else{
             start = -1;
-            got = 0;
-        }
-        if(got*(*heap)->block_size >= size){
-            break;
+            if ((*heap)->blocks[i].end_block > i){
+                i = (*heap)->blocks[i].end_block;
+            }else{
+                i++;
+            }
+            continue;
         }
         i++;
-
     }
+
     if(start == -1){
         return NULL;
     }
 
-    for(uint64_t f = start; f<start+got; f++){
+    for(uint64_t f = start; f<start+needed; f++){
         (*heap)->blocks[f].isAllocated = true;
         (*heap)->blocks[f].start_block = start;
-        (*heap)->blocks[f].end_block = start+got;
+        (*heap)->blocks[f].end_block = start+needed;
     }
 
     return (void*)((*heap)->start_addr+(start*(*heap)->block_size));
