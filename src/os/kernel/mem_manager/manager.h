@@ -19,5 +19,6 @@ typedef struct{
 
 void mem_manager_init(size_t size, uint32_t kernel_size_SECTORS);
 void* alloc(heap_t **heap, size_t size);
+void free(heap_t **heap, void *ptr);
 void* kalloc(size_t size);
 void kfree(void *ptr);
