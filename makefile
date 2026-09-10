@@ -53,11 +53,11 @@ build/os.img: build/bootloader.bin build/kernel.bin
 
 # ---- run ----
 run: all
-	qemu-system-x86_64 -drive format=raw,file=build/os.img -m 4G -serial stdio -audiodev alsa,id=snd0 -machine pcspk-audiodev=snd0 -vga qxl -machine pc
+	qemu-system-x86_64 -drive format=raw,file=build/os.img,if=ide -m 4G -serial stdio -audiodev alsa,id=snd0 -machine pcspk-audiodev=snd0 -vga qxl -machine pc
 
 # ---- debug ----
 debug: all
-	qemu-system-x86_64 -drive format=raw,file=build/os.img -m 4G -serial stdio -audiodev alsa,id=snd0 -machine pcspk-audiodev=snd0 -vga qxl -machine pc -s -S
+	qemu-system-x86_64 -drive format=raw,file=build/os.img,if=ide -m 4G -serial stdio -audiodev alsa,id=snd0 -machine pcspk-audiodev=snd0 -vga qxl -machine pc -s -S
 
 # ---- clean ----
 clean:
