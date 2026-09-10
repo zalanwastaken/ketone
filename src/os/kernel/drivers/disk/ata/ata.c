@@ -5,6 +5,7 @@
 #include "../common.h"
 
 // DRIVE CHAN~ ! lol
+#define CHANN_DATA          0
 #define CHANN_FEATURES      1
 #define CHANN_ERR           1
 #define CHANN_SECTOR_COUNT  2
@@ -82,6 +83,9 @@ disk_device_t* ATA_identify(uint32_t chann, uint32_t sub){
 
     device->type = DEVICE_TYPE_ATA;
 
+    ATA_driver_data *driver_data = kalloc(sizeof(ATA_driver_data)*1);
+    device->driver_data = driver_data;
+
     uint16_t identify[256];
 
     for (int i = 0; i < 256; i++) {
@@ -100,12 +104,12 @@ disk_device_t* ATA_identify(uint32_t chann, uint32_t sub){
     device->name[40] = '\0';
 
     if (identify[83] & (1 << 10)) {
-        device->hasLBA48 = true;
+        driver_data->has_LBA48 = true;
     } else {
-        device->hasLBA48 = false;
+        driver_data->has_LBA48 = false;
     }
 
-    switch (device->hasLBA48){
+    switch (driver_data->has_LBA48){
     case true:
         device->size =  (((uint64_t)identify[103] << 48) |
                         ((uint64_t)identify[102] << 32) |
@@ -121,15 +125,36 @@ disk_device_t* ATA_identify(uint32_t chann, uint32_t sub){
     return device;
 }
 
-bool ATA_read(disk_device_t *disk, uint64_t lba, uint16_t **buff){
-    outb(disk->chann_main + CHANN_DRIVE, disk->chann_sub | 0x40 | ((lba >> 24) & 0x0F));
+bool ATA_read(disk_device_t *disk, uint64_t lba, uint16_t *buff){
+    ATA_driver_data *driver_data = (ATA_driver_data*)(disk->driver_data);
+    switch (driver_data->has_LBA48){
+    case true:
+        outb(disk->chann_main + CHANN_DRIVE, disk->chann_sub | 0x40);
+        // High bytes first
+        outb(disk->chann_main + CHANN_SECTOR_COUNT, 0);
+        outb(disk->chann_main + CHANN_LBA_LOW,  (lba >> 24) & 0xFF);
+        outb(disk->chann_main + CHANN_LBA_MID,  (lba >> 32) & 0xFF);
+        outb(disk->chann_main + CHANN_LBA_HIGH, (lba >> 40) & 0xFF);
 
-    outb(disk->chann_main + CHANN_SECTOR_COUNT, 1);
-    outb(disk->chann_main + CHANN_LBA_LOW,  lba & 0xFF);
-    outb(disk->chann_main + CHANN_LBA_MID,  (lba >> 8) & 0xFF);
-    outb(disk->chann_main + CHANN_LBA_HIGH, (lba >> 16) & 0xFF);
+        // Low bytes
+        outb(disk->chann_main + CHANN_SECTOR_COUNT, 1);
+        outb(disk->chann_main + CHANN_LBA_LOW,  lba & 0xFF);
+        outb(disk->chann_main + CHANN_LBA_MID,  (lba >> 8) & 0xFF);
+        outb(disk->chann_main + CHANN_LBA_HIGH, (lba >> 16) & 0xFF);
 
-    outb(disk->chann_main + CHANN_CMD, CMD_ATA_READ_PIO);
+        outb(disk->chann_main + CHANN_CMD, CMD_ATA_READ_PIO_EXT);
+        break;
+    case false:
+        outb(disk->chann_main + CHANN_DRIVE, disk->chann_sub | 0x40 | ((lba >> 24) & 0x0F));
+
+        outb(disk->chann_main + CHANN_SECTOR_COUNT, 1);
+        outb(disk->chann_main + CHANN_LBA_LOW,  lba & 0xFF);
+        outb(disk->chann_main + CHANN_LBA_MID,  (lba >> 8) & 0xFF);
+        outb(disk->chann_main + CHANN_LBA_HIGH, (lba >> 16) & 0xFF);
+
+        outb(disk->chann_main + CHANN_CMD, CMD_ATA_READ_PIO);
+        break;
+    }
 
     uint8_t status = wait_for_data(disk->chann_main);
 
@@ -144,7 +169,56 @@ bool ATA_read(disk_device_t *disk, uint64_t lba, uint16_t **buff){
     }
 
     for (int i = 0; i < 256; i++) {
-        (*buff)[i] = inw(disk->chann_main + 0);
+        buff[i] = inw(disk->chann_main + CHANN_DATA);
+    }
+
+    return true;
+}
+
+bool ATA_write(disk_device_t *disk, uint32_t lba, uint16_t *buff){
+    ATA_driver_data *driver_data = (ATA_driver_data*)(disk->driver_data);
+    switch (driver_data->has_LBA48){
+    case true:
+        outb(disk->chann_main + CHANN_DRIVE, disk->chann_sub | 0x40);
+        // High bytes
+        outb(disk->chann_main + CHANN_SECTOR_COUNT, 0);
+        outb(disk->chann_main + CHANN_LBA_LOW,  (lba >> 24) & 0xFF);
+        outb(disk->chann_main + CHANN_LBA_MID,  (lba >> 32) & 0xFF);
+        outb(disk->chann_main + CHANN_LBA_HIGH, (lba >> 40) & 0xFF);
+
+        // Low bytes
+        outb(disk->chann_main + CHANN_SECTOR_COUNT, 1);
+        outb(disk->chann_main + CHANN_LBA_LOW,  lba & 0xFF);
+        outb(disk->chann_main + CHANN_LBA_MID,  (lba >> 8) & 0xFF);
+        outb(disk->chann_main + CHANN_LBA_HIGH, (lba >> 16) & 0xFF);
+
+        outb(disk->chann_main + CHANN_CMD, CMD_ATA_WRITE_PIO_EXT);
+        break;
+    case false:
+        outb(disk->chann_main + CHANN_DRIVE, disk->chann_sub | 0x40 | ((lba >> 24) & 0x0F));
+        outb(disk->chann_main + CHANN_SECTOR_COUNT, 1);
+        outb(disk->chann_main + CHANN_LBA_LOW, lba & 0xFF);
+        outb(disk->chann_main + CHANN_LBA_MID, (lba >> 8) & 0xFF);
+        outb(disk->chann_main + CHANN_LBA_HIGH, (lba >> 16) & 0xFF);
+
+        outb(disk->chann_main + CHANN_CMD, CMD_ATA_WRITE_PIO);
+        break;
+    }
+
+    uint8_t status = wait_for_data(disk->chann_main);
+
+    if (status & 0x01) {
+        serial_printLN("ATA write device error");
+        return false;
+    }
+
+    if (!(status & 0x08)) {
+        serial_printLN("ATA write device no data");
+        return false;
+    }
+
+    for (int i = 0; i < 256; i++) {
+        outw(disk->chann_main + CHANN_DATA, buff[i]);
     }
 
     return true;

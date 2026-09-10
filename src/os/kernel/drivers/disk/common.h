@@ -13,5 +13,9 @@ typedef struct{
     uint32_t chann_main;
     uint32_t chann_sub;
     uint64_t size;
-    bool hasLBA48;
+    void *driver_data;
 } disk_device_t;
+
+disk_device_t** get_disk_devices(uint8_t type);
+bool read_disk(disk_device_t *disk, uint32_t lba, uint16_t *buff);
+bool write_disk(disk_device_t *disk, uint32_t lba, uint16_t *buff);

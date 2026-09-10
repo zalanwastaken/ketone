@@ -5,7 +5,6 @@
 #include "utils.h"
 //#include "mem_manager/utils.h"
 
-#include "drivers/disk/ata/ata.h"
 #include "drivers/disk/common.h"
 
 uint32_t *kernel_size_SECTORS = (uint32_t*)0x7E00; //? placed here by the bootloader
@@ -27,22 +26,13 @@ __attribute__((section(".start")))
 void kernel_main(void){
     init();
 
-    disk_device_t *drive = ATA_identify(ATA_CHANN_PRIMARY, ATA_MASTER);
-
-    if(drive->type != DEVICE_TYPE_NONE){
-        serial_printLN(drive->name);
-        serial_print_hexLN(drive->hasLBA48);
-        uint16_t *buff = (uint16_t*)kalloc(sizeof(uint16_t)*256);
-        bool success = ATA_read(drive, 0, &buff);
-        if(success){
-            for(uint64_t i = 0; i<256; i++){
-                serial_print_hexLN(buff[i]);
-            }
+    disk_device_t** drives = get_disk_devices(DEVICE_TYPE_ATA);
+    for(uint64_t i = 0; i<4; i++){
+        if(drives[i]->type != DEVICE_TYPE_NONE){
+            serial_print_hexLN(i);
+            serial_printLN(drives[i]->name);
         }
-        kfree(buff);
     }
-
-    kfree(drive);
 
     halt();
 }
