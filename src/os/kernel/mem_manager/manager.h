@@ -4,10 +4,10 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-typedef struct{
+typedef struct{ //! NOTE TO SELF: this uses a fuck ton of mem, optimise it !
     bool isAllocated;
-    uint64_t start_block;
-    uint64_t end_block;
+    uint32_t start_block;
+    uint32_t end_block;
 } allocation_t;
 
 typedef struct{
@@ -16,6 +16,8 @@ typedef struct{
     uint64_t max_size;
     allocation_t *blocks;
 } heap_t;
+
+extern heap_t *root_heap;
 
 void mem_manager_init(size_t size, uint32_t kernel_size_SECTORS);
 void* alloc(heap_t **heap, size_t size);

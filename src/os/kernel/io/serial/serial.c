@@ -63,3 +63,8 @@ void serial_print_decLN(uint32_t val){
     serial_print_dec(val);
     serial_print("\n");
 }
+
+void serial_printLN(const char *s){
+    serial_print(s);
+    serial_print("\n");
+}
