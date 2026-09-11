@@ -175,7 +175,7 @@ bool ATA_read(disk_device_t *disk, uint64_t lba, uint16_t *buff){
     return true;
 }
 
-bool ATA_write(disk_device_t *disk, uint32_t lba, uint16_t *buff){
+bool ATA_write(disk_device_t *disk, uint64_t lba, uint16_t *buff){
     ATA_driver_data *driver_data = (ATA_driver_data*)(disk->driver_data);
     switch (driver_data->has_LBA48){
     case true:
