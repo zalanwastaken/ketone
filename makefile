@@ -38,18 +38,41 @@ build/kernel.bin: $(OBJS)
 	@echo "LD $(OBJS)"
 
 # ---- bootloader ----
-build/bootloader.bin: src/os/bootloader.asm build/kernel.bin
+build/bootloader.bin: src/os/bootloader/bootloader.asm build/kernel.bin
 	@mkdir -p build
 	$(eval KSIZE := $(shell stat -c%s build/kernel.bin))
 	$(eval KSECTORS := $(shell echo $$(( ($(KSIZE) + 511) / 512 )) ))
 	@$(AS) -DSECTORS=$(KSECTORS) -f bin $< -o $@
 	@echo "AS $< (kernel size=$(KSIZE) bytes, $(KSECTORS) sectors)"
 
+build/bootloader_s2.bin: src/os/bootloader/bootloader_s2.asm build/kernel.bin
+	@mkdir -p build
+	$(eval KSIZE := $(shell stat -c%s build/kernel.bin))
+	$(eval KSECTORS := $(shell echo $$(( ($(KSIZE) + 511) / 512 )) ))
+	@$(AS) -DSECTORS=$(KSECTORS) -f bin $< -o $@
+	@echo "AS $< (kernel size=$(KSIZE) bytes, $(KSECTORS) sectors)"
+
+# ---- fs ----
+data/exfat.img:
+	mkdir -p data
+	$(eval KSIZE := $(shell stat -c%s build/kernel.bin))
+	$(eval KSECTORS := $(shell echo $$(( ($(KSIZE) + 511) / 512 )) ))
+	$(eval PARTITION_START := $(shell echo $$(( 8 + $(KSECTORS) )) ))
+	$(eval PARTITION_SECTORS := $(shell echo $$(( 524288 - $(PARTITION_START) )) ))
+	truncate -s $$(( $(PARTITION_SECTORS) * 512 )) $@
+	mkfs.exfat $@
+
 # ---- disk image ----
-build/os.img: build/bootloader.bin build/kernel.bin
-	dd if=/dev/zero of=$@ bs=512 count=2880
+build/os.img: build/bootloader.bin build/bootloader_s2.bin build/kernel.bin data/exfat.img
+	dd if=/dev/zero of=$@ bs=512 count=524288
 	dd if=build/bootloader.bin of=$@ conv=notrunc
-	dd if=build/kernel.bin of=$@ bs=1 seek=4096 conv=notrunc
+	dd if=build/bootloader_s2.bin of=$@ bs=512 seek=1 conv=notrunc
+	dd if=build/kernel.bin of=$@ bs=512 seek=8 conv=notrunc
+	$(eval KSIZE := $(shell stat -c%s build/kernel.bin))
+	$(eval KSECTORS := $(shell echo $$(( ($(KSIZE) + 511) / 512 )) ))
+	$(eval PARTITION_START := $(shell echo $$(( 8 + $(KSECTORS) )) ))
+	$(eval PARTITION_SECTORS := $(shell echo $$(( 524288 - $(PARTITION_START) )) ))
+	dd if=data/exfat.img of=$@ bs=512 seek=$(PARTITION_START) conv=notrunc
 
 # ---- run ----
 run: all
