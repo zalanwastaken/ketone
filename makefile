@@ -59,8 +59,9 @@ data/exfat.img:
 	$(eval KSECTORS := $(shell echo $$(( ($(KSIZE) + 511) / 512 )) ))
 	$(eval PARTITION_START := $(shell echo $$(( 8 + $(KSECTORS) )) ))
 	$(eval PARTITION_SECTORS := $(shell echo $$(( 524288 - $(PARTITION_START) )) ))
-	truncate -s $$(( $(PARTITION_SECTORS) * 512 )) $@
-	mkfs.exfat $@
+	@truncate -s $$(( $(PARTITION_SECTORS) * 512 )) $@
+	@echo "FS $@"
+	@mkfs.exfat $@
 
 # ---- disk image ----
 build/os.img: build/bootloader.bin build/bootloader_s2.bin build/kernel.bin data/exfat.img
@@ -85,3 +86,4 @@ debug: all
 # ---- clean ----
 clean:
 	rm -rf build
+	rm -rf data

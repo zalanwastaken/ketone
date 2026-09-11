@@ -6,12 +6,13 @@
 //#include "mem_manager/utils.h"
 
 #include "drivers/disk/common.h"
+#include "drivers/fs/mbr/mbr.h"
 
 uint32_t *kernel_size_SECTORS = (uint32_t*)0x7E00; //? placed here by the bootloader
 
 void init(){
     serial_init();
-    serial_print("HALLO FROM THE KERNEL IN 64BIT MODE !\n");
+    serial_printLN("HALLO FROM THE KETONE KERNEL IN 64BIT MODE !");
     *kernel_size_SECTORS += 4; //? some offset
     serial_print_hexLN((*kernel_size_SECTORS)*512);
     //               1 GiB
@@ -31,6 +32,13 @@ void kernel_main(void){
         if(drives[i]->type != DEVICE_TYPE_NONE){
             serial_print_hexLN(i);
             serial_printLN(drives[i]->name);
+            mbr_partition_t **partitions = (mbr_partition_t**)kalloc(sizeof(mbr_partition_t**)*4); 
+            int16_t entries = MBR_get_partitions(drives[i], partitions);
+            if(entries == -1){
+                kfree(partitions);
+            }else{
+                serial_print_hexLN(entries);
+            }
         }
     }
 
