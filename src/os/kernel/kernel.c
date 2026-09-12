@@ -7,6 +7,7 @@
 
 #include "drivers/disk/common.h"
 #include "drivers/fs/mbr/mbr.h"
+#include "drivers/fs/exfat/exfat.h"
 
 uint32_t *kernel_size_SECTORS = (uint32_t*)0x7E00; //? placed here by the bootloader
 
@@ -38,6 +39,12 @@ void kernel_main(void){
                 kfree(partitions);
             }else{
                 serial_print_hexLN(entries);
+                for(uint64_t f = 0; f<entries; f++){
+                    if(partitions[f]->type == 0x07){
+                        exfat_instance_t instance = EXFAT_init(drives[i], partitions[f]);
+                        EXFAT_read_file(instance, "");
+                    }
+                }
             }
         }
     }
