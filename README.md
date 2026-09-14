@@ -41,18 +41,18 @@ QEMU is your friend.
 
 ## Roadmap
 Planned areas include:
-* [x] 64-bit boot
-* [x] Basic paging
-* [x] Kernel memory management
-* [x] ATA PIO driver
-* [-] Initial exFAT support
-* [ ] More complete filesystem support
-* [ ] Interrupt handling
+* 🟩 64-bit boot
+* 🟩 Basic paging
+* 🟩 Kernel memory management
+* 🟩 ATA PIO driver
+* 🟩 Initial exFAT support
+* 🟨 More complete exFAT support
+* 🟥 Interrupt handling
 
 ### Key
-* "X" done
-* "-" doing
-* " " to-do
+* 🟩 done
+* 🟨 doing
+* 🟥 to-do
 
 This roadmap is intentionally subject to change because operating systems have a funny habit of turning a one-day task into a three-week side quest.
 

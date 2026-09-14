@@ -27,9 +27,11 @@ typedef struct{
     uint8_t number_of_fats;
 } exfat_instance_t;
 
-typedef struct{
-    uint16_t attributes;
+typedef struct {
+    char *path;
+    exfat_instance_t *fs;
 
+    uint16_t attributes;
     uint32_t first_cluster;
 
     uint64_t valid_data_length;
@@ -40,5 +42,13 @@ typedef struct{
     uint8_t flags;
 } exfat_file_entry_t;
 
+typedef struct {
+    exfat_instance_t *fs;
+    uint32_t first_cluster;
+} exfat_directory_t;
+
 exfat_instance_t EXFAT_init(disk_device_t *disk, mbr_partition_t *mbr);
-uint64_t EXFAT_read_file(exfat_instance_t fs, const char *name);
+uint8_t *EXFAT_read_file(exfat_file_entry_t *file, uint64_t *size);
+exfat_file_entry_t *EXFAT_open_file(exfat_instance_t *fs, const char *name);
+uint8_t* EXFAT_read_file(exfat_file_entry_t *file, uint64_t *size);
+uint8_t* EXFAT_read_file_ALL(exfat_file_entry_t *file, size_t *size);

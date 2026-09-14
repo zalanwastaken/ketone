@@ -42,7 +42,18 @@ void kernel_main(void){
                 for(uint64_t f = 0; f<entries; f++){
                     if(partitions[f]->type == 0x07){
                         exfat_instance_t instance = EXFAT_init(drives[i], partitions[f]);
-                        EXFAT_read_file(instance, "");
+                        exfat_file_entry_t *hello_file = EXFAT_open_file(&instance, "/krnl/hello");
+                        if(hello_file == NULL){
+                            continue; //? not found, sad
+                        }
+
+                        size_t hello_file_size;
+                        uint8_t *buff = EXFAT_read_file_ALL(hello_file, &hello_file_size);
+                        for(uint64_t i = 0; i<hello_file_size; i++){
+                            serial_write(buff[i]);
+                        }
+                        serial_write('\n');
+                        kfree(buff);
                     }
                 }
             }
