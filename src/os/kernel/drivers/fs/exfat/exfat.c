@@ -173,7 +173,7 @@ exfat_file_entry_t *EXFAT_open_file(exfat_instance_t *fs, const char *path){
                         file->name_length = secondary[0x03];
                         file->name_hash = read_u16_le(secondary, 0x04);
 
-                        file->flags = secondary[0x06];
+                        file->flags = secondary[0x01];
                         file->valid_data_length = read_u64_le(secondary, 0x08);
                         file->first_cluster = read_u32_le(secondary, 0x14);
                         file->data_length = read_u64_le(secondary, 0x18);
@@ -263,7 +263,12 @@ uint8_t* EXFAT_read_file(exfat_file_entry_t *file, uint64_t *size){
         if (bytes_read >= file->data_length){
             break;
         }
-        cluster = EXFAT_get_fat_entry(*fs, cluster);
+
+        if (file->flags & 0x02) {
+            cluster++;
+        } else {
+            cluster = EXFAT_get_fat_entry(*fs, cluster);
+        }
     }
 
     kfree(cluster_buffer);
@@ -305,12 +310,16 @@ uint8_t* EXFAT_read_file_ALL(exfat_file_entry_t *file, size_t *size){
             break;
         }
 
-        cluster = EXFAT_get_fat_entry(*fs, cluster);
+        if (file->flags & 0x02) {
+            cluster++;
+        } else {
+            cluster = EXFAT_get_fat_entry(*fs, cluster);
 
-        if (cluster >= 0xFFFFFFF8) {
-            kfree(cluster_buffer);
-            kfree(data);
-            return NULL;
+            if (cluster >= 0xFFFFFFF8) {
+                kfree(cluster_buffer);
+                kfree(data);
+                return NULL;
+            }
         }
     }
 
