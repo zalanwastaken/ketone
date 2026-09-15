@@ -1,4 +1,4 @@
-.PHONY: all run debug clean
+.PHONY: all run debug clean clean-all
 
 CC = gcc
 LD = gcc
@@ -85,5 +85,8 @@ debug: all
 
 # ---- clean ----
 clean:
+	rm -rf build
+
+clean-all:
 	rm -rf build
 	rm -rf data
