@@ -17,6 +17,9 @@ OBJ_C   := $(patsubst src/%.c, build/%.o, $(SRC_C))
 OBJ_ASM := $(patsubst src/%.asm, build/%.o, $(SRC_ASM))
 OBJS    := $(OBJ_C) $(OBJ_ASM)
 
+# ---- fs ----
+ROOTFS_FILES := $(shell find rootfs -type f)
+
 # ---- main target ----
 all: build/kernel.bin build/os.img
 
@@ -53,18 +56,24 @@ build/bootloader_s2.bin: src/os/bootloader/bootloader_s2.asm build/kernel.bin
 	@echo "AS $< (kernel size=$(KSIZE) bytes, $(KSECTORS) sectors)"
 
 # ---- fs ----
-data/exfat.img:
-	mkdir -p data
+build/exfat.img: $(ROOTFS_FILES)
+	@mkdir -p build
 	$(eval KSIZE := $(shell stat -c%s build/kernel.bin))
 	$(eval KSECTORS := $(shell echo $$(( ($(KSIZE) + 511) / 512 )) ))
 	$(eval PARTITION_START := $(shell echo $$(( 8 + $(KSECTORS) )) ))
 	$(eval PARTITION_SECTORS := $(shell echo $$(( 524288 - $(PARTITION_START) )) ))
 	@truncate -s $$(( $(PARTITION_SECTORS) * 512 )) $@
 	@echo "FS $@"
-	@mkfs.exfat $@
+	@mkfs.exfat -F $@
+
+	@LOOPDEV=$$(udisksctl loop-setup --file $@ --no-user-interaction | sed -n 's/.* as \(.*\)\./\1/p'); \
+	MOUNTPOINT=$$(udisksctl mount -b "$$LOOPDEV" --no-user-interaction | sed -n 's/.* at \(.*\)/\1/p'); \
+	cp -r rootfs/. "$$MOUNTPOINT/"; \
+	udisksctl unmount -b "$$LOOPDEV" --no-user-interaction; \
+	udisksctl loop-delete -b "$$LOOPDEV" --no-user-interaction
 
 # ---- disk image ----
-build/os.img: build/bootloader.bin build/bootloader_s2.bin build/kernel.bin data/exfat.img
+build/os.img: build/bootloader.bin build/bootloader_s2.bin build/kernel.bin build/exfat.img
 	dd if=/dev/zero of=$@ bs=512 count=524288
 	dd if=build/bootloader.bin of=$@ conv=notrunc
 	dd if=build/bootloader_s2.bin of=$@ bs=512 seek=1 conv=notrunc
@@ -73,7 +82,7 @@ build/os.img: build/bootloader.bin build/bootloader_s2.bin build/kernel.bin data
 	$(eval KSECTORS := $(shell echo $$(( ($(KSIZE) + 511) / 512 )) ))
 	$(eval PARTITION_START := $(shell echo $$(( 8 + $(KSECTORS) )) ))
 	$(eval PARTITION_SECTORS := $(shell echo $$(( 524288 - $(PARTITION_START) )) ))
-	dd if=data/exfat.img of=$@ bs=512 seek=$(PARTITION_START) conv=notrunc
+	dd if=build/exfat.img of=$@ bs=512 seek=$(PARTITION_START) conv=notrunc
 
 # ---- run ----
 run: all
@@ -86,7 +95,3 @@ debug: all
 # ---- clean ----
 clean:
 	rm -rf build
-
-clean-all:
-	rm -rf build
-	rm -rf data
