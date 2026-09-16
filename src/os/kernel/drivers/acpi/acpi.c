@@ -39,7 +39,7 @@ bool ACPI_init(){
     return false;
 }
 
-void* ACPI_get_table(const char *name){
+rsdt_header_t* ACPI_get_table(const char *name){
     if(RSD_T == NULL){
         serial_printLN("ACPI RSD_T not found or not init");
         return NULL;
@@ -56,5 +56,10 @@ void* ACPI_get_table(const char *name){
         }
         sig[4] = '\0';
         serial_printLN(sig);
+        if(strcmp(sig, name) == 0){
+            return table;
+        }
     }
+
+    return NULL;
 }

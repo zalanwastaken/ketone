@@ -35,4 +35,4 @@ typedef struct{
 } __attribute__ ((packed)) rsdt_header_t;
 
 bool ACPI_init();
-void* ACPI_get_table(const char *name);
+rsdt_header_t* ACPI_get_table(const char *name);
