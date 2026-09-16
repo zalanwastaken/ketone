@@ -8,6 +8,7 @@
 #include "drivers/disk/common.h"
 #include "drivers/fs/mbr/mbr.h"
 #include "drivers/fs/exfat/exfat.h"
+#include "drivers/acpi/acpi.h"
 
 uint32_t *kernel_size_SECTORS = (uint32_t*)0x7E00; //? placed here by the bootloader
 
@@ -16,7 +17,7 @@ void init(){
     serial_printLN("HALLO FROM THE KETONE KERNEL IN 64BIT MODE !");
     *kernel_size_SECTORS += 4; //? some offset
     serial_print_hexLN((*kernel_size_SECTORS)*512);
-    //               1 GiB
+    //?              1 GiB
     mem_manager_init(0x40000000, *kernel_size_SECTORS);
 
     uint32_t *kernel_size_SECTORS_new = (uint32_t*)kalloc(sizeof(uint32_t));
@@ -42,7 +43,7 @@ void kernel_main(void){
                 for(uint64_t f = 0; f<entries; f++){
                     if(partitions[f]->type == 0x07){
                         exfat_instance_t instance = EXFAT_init(drives[i], partitions[f]);
-                        exfat_file_entry_t *hello_file = EXFAT_open_file(&instance, "/krnl/hello");
+                        exfat_file_entry_t *hello_file = EXFAT_open_file(&instance, "/ketone/hello");
                         if(hello_file == NULL){
                             continue; //? not found, sad
                         }
@@ -59,6 +60,9 @@ void kernel_main(void){
             }
         }
     }
+
+    serial_print_hexLN(ACPI_init());
+    ACPI_get_table("");
 
     halt();
 }
