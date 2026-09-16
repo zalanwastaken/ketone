@@ -47,6 +47,9 @@ Planned areas include:
 * 🟩 ATA PIO driver
 * 🟩 Initial exFAT support
 * 🟨 More complete exFAT support
+* 🟨 ACPI
+* 🟥 PCI and PCIe
+* 🟥 SATA
 * 🟥 Interrupt handling
 
 ### Key
