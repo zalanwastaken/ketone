@@ -9,6 +9,7 @@
 #include "drivers/fs/mbr/mbr.h"
 #include "drivers/fs/exfat/exfat.h"
 #include "drivers/acpi/acpi.h"
+#include "drivers/component_bus/pcie/pcie.h"
 
 uint32_t *kernel_size_SECTORS = (uint32_t*)0x7E00; //? placed here by the bootloader
 
@@ -23,11 +24,18 @@ void init(){
     uint32_t *kernel_size_SECTORS_new = (uint32_t*)kalloc(sizeof(uint32_t));
     *kernel_size_SECTORS_new = *kernel_size_SECTORS;
     kernel_size_SECTORS = kernel_size_SECTORS_new;
+
+    if(ACPI_init() == false){
+        serial_printLN("ACPI init fail !");
+        halt();
+    }
 }
 
 __attribute__((section(".start")))
 void kernel_main(void){
     init();
+
+    /*
 
     disk_device_t** drives = get_disk_devices(DEVICE_TYPE_ATA);
     for(uint64_t i = 0; i<4; i++){
@@ -60,9 +68,10 @@ void kernel_main(void){
             }
         }
     }
+    */
 
-    serial_print_hexLN(ACPI_init());
-    ACPI_get_table("");
+    PCIE_init();
+    PCIE_print_devices();
 
     halt();
 }

@@ -86,7 +86,7 @@ build/os.img: build/bootloader.bin build/bootloader_s2.bin build/kernel.bin buil
 
 # ---- run ----
 run: all
-	qemu-system-x86_64 -drive format=raw,file=build/os.img,if=ide -m 4G -serial stdio -audiodev alsa,id=snd0 -machine pcspk-audiodev=snd0 -vga qxl -machine pc
+	qemu-system-x86_64 -drive format=raw,file=build/os.img,if=ide -m 4G -serial stdio -audiodev alsa,id=snd0 -machine pcspk-audiodev=snd0 -vga qxl -machine q35
 
 # ---- debug ----
 debug: all
