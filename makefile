@@ -26,37 +26,37 @@ all: build/kernel.bin build/os.img
 # ---- compile C ----
 build/%.o: src/%.c
 	@mkdir -p $(dir $@)
-	@$(CC) $(CFLAGS) $< -o $@
 	@echo "CC $<"
+	@$(CC) $(CFLAGS) $< -o $@
 
 # ---- compile ASM ----
 build/%.o: src/%.asm
 	@mkdir -p $(dir $@)
-	@$(AS) $(ASFLAGS) $< -o $@
 	@echo "AS $<"
+	@$(AS) $(ASFLAGS) $< -o $@
 
 # ---- link kernel ----
 build/kernel.bin: $(OBJS)
-	@$(LD) $(LDFLAGS) -o $@ $(OBJS)
 	@echo "LD $(OBJS)"
+	@$(LD) $(LDFLAGS) -o $@ $(OBJS)
 
 # ---- bootloader ----
 build/bootloader.bin: src/os/bootloader/bootloader.asm build/kernel.bin
 	@mkdir -p build
 	$(eval KSIZE := $(shell stat -c%s build/kernel.bin))
 	$(eval KSECTORS := $(shell echo $$(( ($(KSIZE) + 511) / 512 )) ))
-	@$(AS) -DSECTORS=$(KSECTORS) -f bin $< -o $@
 	@echo "AS $< (kernel size=$(KSIZE) bytes, $(KSECTORS) sectors)"
+	@$(AS) -DSECTORS=$(KSECTORS) -f bin $< -o $@
 
 build/bootloader_s2.bin: src/os/bootloader/bootloader_s2.asm build/kernel.bin
 	@mkdir -p build
 	$(eval KSIZE := $(shell stat -c%s build/kernel.bin))
 	$(eval KSECTORS := $(shell echo $$(( ($(KSIZE) + 511) / 512 )) ))
-	@$(AS) -DSECTORS=$(KSECTORS) -f bin $< -o $@
 	@echo "AS $< (kernel size=$(KSIZE) bytes, $(KSECTORS) sectors)"
+	@$(AS) -DSECTORS=$(KSECTORS) -f bin $< -o $@
 
 # ---- fs ----
-build/exfat.img: $(ROOTFS_FILES)
+build/exfat.img: $(ROOTFS_FILES) build/kernel.bin
 	@mkdir -p build
 	$(eval KSIZE := $(shell stat -c%s build/kernel.bin))
 	$(eval KSECTORS := $(shell echo $$(( ($(KSIZE) + 511) / 512 )) ))
