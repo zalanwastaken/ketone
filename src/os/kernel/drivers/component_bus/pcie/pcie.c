@@ -57,11 +57,13 @@ void PCIE_print_devices(){
                     if(vendor_id == 0xFFFF){
                         continue;
                     }
+                    serial_print("----");
                     serial_print_hex(bus);
                     serial_print(":");
                     serial_print_hex(device);
                     serial_print(".");
-                    serial_print_hexLN(function);
+                    serial_print_hex(function);
+                    serial_printLN("----");
 
                     serial_print_hex(vendor_id);
                     serial_print(" as ");
