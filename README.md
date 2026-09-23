@@ -5,8 +5,6 @@
 # Ketone
 > A hobby x86_64 operating system built from scratch.
 
-Ketone is a small operating system written from the ground up.
-
 ## Why?
 Because I can.
 
@@ -15,7 +13,7 @@ Make sure you have the following things installed:
 * nasm
 * gcc
 * make
-* qemu
+* qemu (not required for building but required for running, `make run`)
 * exfatprogs
 
 Run the following to build
