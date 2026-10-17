@@ -1,12 +1,68 @@
 #include "manager.h"
 #include "../io/serial/serial.h"
+#include "../utils.h"
 
-heap_t *root_heap;
+#define MAPPED_LIMIT 0x100000000ULL
 
-void mem_manager_init(size_t size, uint32_t kernel_size_SECTORS){
+#define KERNEL_START 0x120000
+
+#define E820_MAX_ENTRIES 64
+
+#define E820_USABLE       1
+#define E820_RESERVED     2
+#define E820_ACPI_RECLAIM 3
+#define E820_ACPI_NVS     4
+#define E820_BAD_MEMORY   5
+
+typedef struct __attribute__((packed)){
+    uint64_t base;
+    uint64_t length;
+    uint32_t type;
+    uint32_t attributes;
+} e820_entry;
+
+typedef struct __attribute__((packed)){
+    uint16_t count;
+    e820_entry entries[E820_MAX_ENTRIES];
+} e820_map;
+
+static heap_t *root_heap;
+static e820_map *memory_map;
+
+void mem_manager_init(size_t size, uint32_t kernel_size_SECTORS, uint32_t *e820_addr){
     kernel_size_SECTORS *= 512;
+    memory_map = (e820_map*)e820_addr;
 
-    uint64_t root_heap_start = kernel_size_SECTORS+0x120000;
+    uint64_t root_heap_start;
+    bool found_suitable_region = false;
+
+    uint64_t kernel_end = KERNEL_START + (uint64_t)kernel_size_SECTORS * 512;
+    uint64_t total = sizeof(heap_t) + sizeof(allocation_t) * (size / 512) + size;
+
+    for (uint16_t i = 0; i < memory_map->count; i++) {
+        e820_entry *e = &memory_map->entries[i];
+        if (e->type != E820_USABLE) continue;
+
+        uint64_t start = e->base > kernel_end ? e->base : kernel_end;
+        start = (start + 0xFFF) & ~0xFFFULL;
+        uint64_t end = e->base + e->length;
+        if (end > MAPPED_LIMIT) end = MAPPED_LIMIT;   // clamp, don't skip
+
+        if (end <= start || end - start < total) continue;
+
+        root_heap_start = start;
+        found_suitable_region = true;
+        break;
+    }
+
+    if(found_suitable_region == false){
+        serial_printLN("MEMORY MAN: Unable to find usable memory");
+        halt();
+    }else{
+        serial_print("MEMORY MAN: region at: ");
+        serial_print_hex64LN(root_heap_start);
+    }
+
     root_heap = (heap_t*)(root_heap_start);
     root_heap->max_size = size;
     root_heap->block_size = 512;

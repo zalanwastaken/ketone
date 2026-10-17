@@ -1,6 +1,10 @@
 [ORG 0x7C00]
 [BITS 16]
 
+E820_MAP       equ 0x8F04
+E820_MAX_ENTRIES equ 64
+E820_ENTRY_SIZE equ 24
+
 start:
     xor ax, ax
     mov ds, ax
@@ -8,6 +12,9 @@ start:
 
     mov si, msg
     call BIOS_print
+
+    call get_memory_map
+    jc memory_map_error
 
     in  al, 0x92
     or  al, 2
@@ -29,7 +36,7 @@ start:
 
     mov ax, 0
     mov es, ax
-    mov bx, 0x7D00
+    mov bx, 0x7E00
     mov ah, 0x02
     mov al, 1
     mov ch, 0
@@ -40,12 +47,7 @@ start:
     jc  disk_error
     cmp al, 1
     jne disk_error
-    jmp read_ok
-
-disk_error:
-    mov si, err_msg
-    call BIOS_print
-    jmp $
+    ;jmp read_ok
 
 read_ok:
     cli
@@ -54,7 +56,7 @@ read_ok:
     or eax, 1
     mov cr0, eax
 
-    jmp 0x08:0x7D00
+    jmp 0x08:0x7E00
 
 ;* --FUNCTIONS--
 
@@ -74,12 +76,90 @@ BIOS_print:
 .done:
     ret
 
+disk_error:
+    mov si, err_msg_disk
+    call BIOS_print
+    jmp $
+
+memory_map_error:
+    mov si, err_msg_memory_map
+    call BIOS_print
+    jmp $
+
+get_memory_map:
+    push es
+    push di
+    push bp
+
+    xor ax, ax
+    mov es, ax
+
+    mov di, E820_MAP
+    mov word [es:di], 0
+    add di, 2
+
+    xor ebx, ebx
+    xor bp, bp
+
+.next:
+    cmp bp, E820_MAX_ENTRIES
+    jae .failed
+
+    ; Initialize descriptor.
+    mov dword [es:di], 0
+    mov dword [es:di + 4], 0
+    mov dword [es:di + 8], 0
+    mov dword [es:di + 12], 0
+    mov dword [es:di + 16], 0
+    mov dword [es:di + 20], 1
+
+    mov eax, 0xE820
+    mov edx, 0x534D4150
+    mov ecx, E820_ENTRY_SIZE
+
+    int 0x15
+    jc .failed
+
+    cmp eax, 0x534D4150
+    jne .failed
+
+    cmp ecx, 20
+    jb .failed
+
+    ; Ignore zero-length regions.
+    mov eax, [es:di + 8]
+    or eax, [es:di + 12]
+    jz .skip
+
+    inc bp
+    mov [es:E820_MAP], bp
+
+    add di, E820_ENTRY_SIZE
+
+.skip:
+    test ebx, ebx
+    jnz .next
+
+    clc
+    jmp .done
+
+.failed:
+    stc
+
+.done:
+    pop bp
+    pop di
+    pop es
+    ret
+
 ;* --DATA--
 data:
 msg:
     db "Hallo", 0
-err_msg:
+err_msg_disk:
     db "DISK ERR", 0
+err_msg_memory_map:
+    db "MEMORY MAP ERR", 0
 
 gdt_start:
 

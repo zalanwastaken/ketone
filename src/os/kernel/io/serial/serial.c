@@ -35,6 +35,16 @@ void serial_print_hex(uint32_t val){
     }
 }
 
+void serial_print_hex64(uint64_t val){
+    char hex[] = "0123456789ABCDEF";
+    serial_print("0x");
+
+    for(int i = 60; i >= 0; i -= 4){
+        char c = hex[(val >> i) & 0xF];
+        serial_write(c);
+    }
+}
+
 void serial_print_dec(uint32_t value){
     char buf[21]; // max uint64_t = 20 digits
     int i = 20;
@@ -68,3 +78,9 @@ void serial_printLN(const char *s){
     serial_print(s);
     serial_print("\n");
 }
+
+void serial_print_hex64LN(uint64_t val){
+    serial_print_hex64(val);
+    serial_print("\n");
+}
+

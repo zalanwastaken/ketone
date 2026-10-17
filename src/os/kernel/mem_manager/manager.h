@@ -17,9 +17,7 @@ typedef struct{
     allocation_t *blocks;
 } heap_t;
 
-extern heap_t *root_heap;
-
-void mem_manager_init(size_t size, uint32_t kernel_size_SECTORS);
+void mem_manager_init(size_t size, uint32_t kernel_size_SECTORS, uint32_t *e820_addr);
 void* alloc(heap_t **heap, size_t size);
 void free(heap_t **heap, void *ptr);
 void* kalloc(size_t size);

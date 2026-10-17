@@ -11,7 +11,7 @@
 #include "drivers/acpi/acpi.h"
 #include "drivers/component_bus/pcie/pcie.h"
 
-uint32_t *kernel_size_SECTORS = (uint32_t*)0x7E00; //? placed here by the bootloader
+uint32_t *kernel_size_SECTORS = (uint32_t*)0x8F00; //? placed here by the bootloader
 
 void init(){
     serial_init();
@@ -19,7 +19,7 @@ void init(){
     *kernel_size_SECTORS += 4; //? some offset
     serial_print_hexLN((*kernel_size_SECTORS)*512);
     //?              1 GiB
-    mem_manager_init(0x40000000, *kernel_size_SECTORS);
+    mem_manager_init(0x40000000, *kernel_size_SECTORS, (uint32_t*)0x8F04);
 
     uint32_t *kernel_size_SECTORS_new = (uint32_t*)kalloc(sizeof(uint32_t));
     *kernel_size_SECTORS_new = *kernel_size_SECTORS;

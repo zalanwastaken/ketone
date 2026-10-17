@@ -1,4 +1,4 @@
-[ORG 0x7D00]
+[ORG 0x7E00]
 [BITS 32]
 
 PML4    equ 0x90000
@@ -38,7 +38,7 @@ protected_mode:
     jmp .copy_loop
 
 .copy_done:
-    mov [0x7E00], SECTORS
+    mov [0x8F00], SECTORS
 
     ; ------------------------------------------------
     ; PML4[0] -> PDPT

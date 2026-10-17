@@ -90,7 +90,7 @@ run: all
 
 # ---- debug ----
 debug: all
-	qemu-system-x86_64 -drive format=raw,file=build/os.img,if=ide -m 4G -serial stdio -audiodev alsa,id=snd0 -machine pcspk-audiodev=snd0 -vga qxl -machine pc -s -S
+	qemu-system-x86_64 -drive format=raw,file=build/os.img,if=ide -m 4G -serial stdio -audiodev alsa,id=snd0 -machine pcspk-audiodev=snd0 -vga qxl -machine q35 -s -S -d int,cpu_reset -no-reboot -D tmp/qemu.log
 
 # ---- clean ----
 clean:
