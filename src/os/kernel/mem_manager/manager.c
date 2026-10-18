@@ -36,7 +36,7 @@ void mem_manager_init(size_t size, uint32_t kernel_size_SECTORS, uint32_t *e820_
     uint64_t root_heap_start;
     bool found_suitable_region = false;
 
-    uint64_t kernel_end = KERNEL_START + (uint64_t)kernel_size_SECTORS * 512;
+    uint64_t kernel_end = KERNEL_START + (uint64_t)kernel_size_SECTORS;
     uint64_t total = sizeof(heap_t) + sizeof(allocation_t) * (size / 512) + size;
 
     for (uint16_t i = 0; i < memory_map->count; i++) {
