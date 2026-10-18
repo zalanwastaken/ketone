@@ -1,11 +1,14 @@
 #include "pcie.h"
+#include "../common.h"
 
 #include "../../../io/serial/serial.h"
+#include "../../../mem_manager/manager.h"
+#include "../../../mem_manager/utils.h"
 
-mcfg_t *MCFG = NULL;
-uint32_t MCFG_entries = 0;
+static mcfg_t *MCFG = NULL;
+static uint32_t MCFG_entries = 0;
 
-uint64_t pcie_config_addr(uint64_t base, uint8_t bus, uint8_t device, uint8_t function, uint16_t offset){
+static inline uint64_t pcie_config_addr(uint64_t base, uint8_t bus, uint8_t device, uint8_t function, uint16_t offset){
     return base
         + ((uint64_t)bus      << 20)
         + ((uint64_t)device   << 15)
@@ -13,10 +16,16 @@ uint64_t pcie_config_addr(uint64_t base, uint8_t bus, uint8_t device, uint8_t fu
         + offset;
 }
 
-uint32_t PCIE_read32(uint64_t base, uint8_t bus, uint8_t device, uint8_t function, uint16_t offset){
+static inline uint32_t PCIE_read32(uint64_t base, uint8_t bus, uint8_t device, uint8_t function, uint16_t offset){
     uint64_t addr = pcie_config_addr(base, bus, device, function, offset);
 
     return *(volatile uint32_t*)addr;
+}
+
+static inline void PCIE_write32(uint64_t base, uint8_t bus, uint8_t device, uint8_t function, uint16_t offset, uint32_t value) {
+    uint64_t addr = pcie_config_addr(base, bus, device, function, offset);
+
+    *(volatile uint32_t *)addr = value;
 }
 
 bool PCIE_init(){
@@ -41,6 +50,151 @@ bool PCIE_init(){
     MCFG_entries = entry_count;
 
     return true;
+}
+
+component_device_t* PCIE_get_devices(size_t *devices_size){
+    uint32_t devices_IDX = 0;
+    *devices_size = 16;
+    component_device_t* devices = kalloc(sizeof(component_device_t)*(*devices_size));
+
+    for(uint64_t i = 0; i<MCFG_entries; i++){
+        mcfg_entry_t *MCFG_entry = &(MCFG->entries[i]);
+
+        for(uint64_t bus = MCFG_entry->start_bus; bus<=MCFG_entry->end_bus; bus++){
+            for(uint16_t device = 0; device<32; device++){
+                for(uint8_t function = 0; function<8; function++){
+                    bool last_BAR_was_64 = false;
+                    uint32_t id = PCIE_read32(MCFG_entry->base_address, bus, device, function, 0);
+                    uint16_t vendor_id = id & 0xFFFF;
+                    if(vendor_id == 0xFFFF){
+                        continue;
+                    }
+
+                    for(uint16_t BAR = 0; BAR<6; BAR++){
+                        uint8_t offset = 0x10 + BAR * 4;
+                        uint32_t BAR_data = PCIE_read32(MCFG_entry->base_address, bus, device, function, offset);
+
+                        bool is_io = (BAR_data & 1u) != 0;
+                        bool is_64 = !is_io && (((BAR_data >> 1) & 3u) == 2u);
+                        bool is_vaild = true;
+                        uint64_t size = 0;
+                        uint64_t base = 0;
+
+                        uint32_t BAR_data_HIGH = 0;
+
+                        if(last_BAR_was_64){
+                            last_BAR_was_64 = false;
+                            is_vaild = false;
+                            goto done;
+                        }
+                        if(is_64){
+                            BAR_data_HIGH = PCIE_read32(MCFG_entry->base_address, bus, device, function, offset+4);
+                        }
+
+                        uint32_t command = PCIE_read32(MCFG_entry->base_address, bus, device, function, 0x04);
+                        PCIE_write32(MCFG_entry->base_address, bus, device, function, 0x04, command & ~3u); //? disable IO and mem decoding
+
+                        PCIE_write32(MCFG_entry->base_address, bus, device, function, offset, 0xFFFFFFFFu);
+                        if(is_64){
+                            PCIE_write32(MCFG_entry->base_address, bus, device, function, offset+4, 0xFFFFFFFFu);
+                        }
+
+                        uint32_t mask = PCIE_read32(MCFG_entry->base_address, bus, device, function, offset);
+                        uint32_t mask_HIGH = 0;
+                        if(is_64){
+                            mask_HIGH = PCIE_read32(MCFG_entry->base_address, bus, device, function, offset+4);
+
+                            PCIE_write32(MCFG_entry->base_address, bus, device, function, offset+4, BAR_data_HIGH);
+                        }
+                        PCIE_write32(MCFG_entry->base_address, bus, device, function, offset, BAR_data);
+
+                        PCIE_write32(MCFG_entry->base_address, bus, device, function, 0x04, command); //? enable previosly disabled stuff
+
+                        if (is_io) {
+                            uint32_t mask_c = mask & ~3u;
+                            size = ~mask_c + 1u;
+                            base = BAR_data & ~3u;
+
+                            if (!mask_c || !size){
+                                is_vaild = false;
+                            }
+
+                            goto done;
+                        }
+
+                        if (((BAR_data >> 1) & 3u) == 3u){
+                            is_vaild = false;
+                            goto done;
+                        }
+
+                        if(is_64){
+                            uint64_t mask_c = ((uint64_t)mask_HIGH << 32) | (mask & ~0xFULL);
+                            size = ~mask_c + 1ULL;
+                            base = ((uint64_t)BAR_data_HIGH << 32) | (BAR_data & ~0xFULL);
+
+                            if(!mask_c || !size){
+                                is_vaild = false;
+                            }
+                        }else{
+                            uint32_t mask_c = mask & ~0xFu;
+                            size = ~mask_c + 1u;
+                            base = BAR_data & ~0xFu;
+
+                            if(!mask_c || !size){
+                                is_vaild = false;
+                            }
+                        }
+
+                        done:
+                        if(devices_IDX >= *devices_size){
+                            component_device_t *buff = kalloc(sizeof(component_device_t)*((*devices_size)+8));
+                            memcpy(devices, buff, sizeof(component_device_t)*(*devices_size));
+                            *devices_size += 8;
+                            kfree(devices);
+                            devices = buff;
+                        }
+                        devices[devices_IDX].bar[BAR].bar_size = size;
+                        devices[devices_IDX].bar[BAR].is_64_bits = is_64;
+                        devices[devices_IDX].bar[BAR].is_IO = is_io;
+                        devices[devices_IDX].bar[BAR].is_prefetchable = (BAR_data & 8u) != 0;
+                        devices[devices_IDX].bar[BAR].is_valid = is_vaild;
+                        devices[devices_IDX].bar[BAR].base = base;
+
+                        if(is_64){
+                            last_BAR_was_64 = true;
+                        }
+                    }
+                    uint32_t class_info = PCIE_read32(MCFG_entry->base_address, bus, device, function, 0x08);
+                    uint8_t revision  =  class_info        & 0xFF;
+                    uint8_t prog_if   = (class_info >> 8)  & 0xFF;
+                    uint8_t subclass  = (class_info >> 16) & 0xFF;
+                    uint8_t class_code = (class_info >> 24) & 0xFF;
+                    uint16_t device_id = id >> 16;
+
+                    devices[devices_IDX].bus = bus;
+                    devices[devices_IDX].device = device;
+                    devices[devices_IDX].function = function;
+                    devices[devices_IDX].bus_type = COMPONENT_DEVICE_TYPE_PCIE;
+                    devices[devices_IDX].class_code = class_code;
+                    devices[devices_IDX].prog_if = prog_if;
+                    devices[devices_IDX].revision = revision;
+                    devices[devices_IDX].subclass = subclass;
+                    devices[devices_IDX].device_id = device_id;
+                    devices_IDX++;
+                }
+            }
+        }
+    }
+
+    if(devices_IDX < (*devices_size)){
+        component_device_t* buff = kalloc(sizeof(component_device_t)*(devices_IDX));
+        memcpy(devices, buff, sizeof(component_device_t)*(devices_IDX));
+        kfree(devices);
+        devices = buff;
+        *devices_size = devices_IDX;
+    }
+
+    return devices;
 }
 
 //! tmp function for testing

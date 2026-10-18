@@ -22,5 +22,5 @@ typedef struct {
 } __attribute__((packed)) mcfg_t;
 
 bool PCIE_init();
+component_device_t* PCIE_get_devices(size_t *devices_size);
 void PCIE_print_devices();
-

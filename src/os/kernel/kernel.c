@@ -17,6 +17,7 @@ void init(){
     serial_init();
     serial_printLN("HALLO FROM THE KETONE KERNEL IN 64BIT MODE !");
     *kernel_size_SECTORS += 4; //? some offset
+    serial_print("Kernel size: ");
     serial_print_hexLN((*kernel_size_SECTORS)*512);
     //?              1 GiB
     mem_manager_init(0x40000000, *kernel_size_SECTORS, (uint32_t*)0x8F04);
@@ -71,7 +72,17 @@ void kernel_main(void){
     */
 
     PCIE_init();
-    PCIE_print_devices();
+    //PCIE_print_devices();
+    size_t got = 0;
+    component_device_t* PCIE_devices = PCIE_get_devices(&got);
+    serial_print_hex64LN(got);
+    for(uint16_t i = 0; i<got; i++){
+        serial_print_hex64(PCIE_devices[i].bus);
+        serial_print(":");
+        serial_print_hex64(PCIE_devices[i].device);
+        serial_print(".");
+        serial_print_hex64LN(PCIE_devices[i].function);
+    }
 
     halt();
 }
