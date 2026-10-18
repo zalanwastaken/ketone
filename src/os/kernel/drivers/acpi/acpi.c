@@ -2,7 +2,7 @@
 #include "../../utils.h"
 #include "../../io/serial/serial.h"
 
-rsdt_header_t *RSD_T = NULL;
+static rsdt_header_t *RSD_T = NULL;
 
 bool acpi_checksum(void *data, uint8_t length){
     uint8_t sum = 0;
@@ -22,12 +22,12 @@ bool ACPI_init(){
             if(acpi_checksum(sig, 20)){
                 rsdp_t *RSD_P = (rsdp_t*)sig;
 
-                serial_printLN("ACPI found RSD_P");
+                //serial_printLN("ACPI found RSD_P");
 
                 rsdt_header_t *RSD_T_a = (rsdt_header_t*)RSD_P->rsdt_address;
                 if(memcmp(RSD_T_a->signature, "RSDT", 4) == 0){
                     if(acpi_checksum(RSD_T_a, RSD_T_a->length)){
-                        serial_printLN("ACPI found RSD_T");
+                        //serial_printLN("ACPI found RSD_T");
 
                         RSD_T = RSD_T_a;
                         return true;
@@ -55,7 +55,7 @@ rsdt_header_t* ACPI_get_table(const char *name){
             sig[f] = table->signature[f];
         }
         sig[4] = '\0';
-        serial_printLN(sig);
+        //serial_printLN(sig);
         if(strcmp(sig, name) == 0){
             return table;
         }

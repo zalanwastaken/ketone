@@ -22,6 +22,7 @@ ROOTFS_FILES := $(shell find rootfs -type f)
 
 # ---- main target ----
 all: build/kernel.bin build/os.img
+	@mkdir -p tmp
 
 # ---- compile C ----
 build/%.o: src/%.c
