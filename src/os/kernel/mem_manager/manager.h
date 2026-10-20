@@ -19,6 +19,8 @@ typedef struct{
 
 void mem_manager_init(size_t size, uint32_t kernel_size_SECTORS, uint32_t *e820_addr);
 void* alloc(heap_t **heap, size_t size);
+void* alloc_aligned(heap_t **heap, size_t size, size_t alignment);
 void free(heap_t **heap, void *ptr);
 void* kalloc(size_t size);
+void* kalloc_aligned(size_t size, size_t align);
 void kfree(void *ptr);

@@ -37,7 +37,7 @@ void mem_manager_init(size_t size, uint32_t kernel_size_SECTORS, uint32_t *e820_
     bool found_suitable_region = false;
 
     uint64_t kernel_end = KERNEL_START + (uint64_t)kernel_size_SECTORS;
-    uint64_t total = sizeof(heap_t) + sizeof(allocation_t) * (size / 512) + size;
+    uint64_t total = sizeof(heap_t) + sizeof(allocation_t) * (size / 512) + 0xFFF + size;
 
     for (uint16_t i = 0; i < memory_map->count; i++) {
         e820_entry *e = &memory_map->entries[i];
@@ -46,7 +46,7 @@ void mem_manager_init(size_t size, uint32_t kernel_size_SECTORS, uint32_t *e820_
         uint64_t start = e->base > kernel_end ? e->base : kernel_end;
         start = (start + 0xFFF) & ~0xFFFULL;
         uint64_t end = e->base + e->length;
-        if (end > MAPPED_LIMIT) end = MAPPED_LIMIT;   // clamp, don't skip
+        if (end > MAPPED_LIMIT) end = MAPPED_LIMIT;
 
         if (end <= start || end - start < total) continue;
 
@@ -67,7 +67,10 @@ void mem_manager_init(size_t size, uint32_t kernel_size_SECTORS, uint32_t *e820_
     root_heap->max_size = size;
     root_heap->block_size = 512;
     root_heap->blocks = (allocation_t*)((uintptr_t)root_heap + sizeof(heap_t));
-    root_heap->start_addr = (uintptr_t)root_heap->blocks + sizeof(allocation_t) * (size / root_heap->block_size);
+    //root_heap->start_addr = (uintptr_t)root_heap->blocks + sizeof(allocation_t) * (size / root_heap->block_size);
+
+    uintptr_t table_end = (uintptr_t)root_heap->blocks + sizeof(allocation_t) * (size / root_heap->block_size);
+    root_heap->start_addr = (table_end + 0xFFF) & ~(uintptr_t)0xFFF;
 
     for(uint64_t i = 0; i<size/root_heap->block_size; i++){
         root_heap->blocks[i].isAllocated = false;
@@ -125,6 +128,66 @@ void* alloc(heap_t **heap, size_t size){
     return (void*)((*heap)->start_addr+(start*(*heap)->block_size));
 }
 
+void* alloc_aligned(heap_t **heap, size_t size, size_t alignment){
+    if(size == 0){
+        return NULL;
+    }
+    if(alignment == 0){
+        alignment = 1;
+    }
+    if(alignment & (alignment - 1)){
+        return NULL; //? alignment must be a power of two
+    }
+
+    heap_t *h = *heap;
+    uint64_t bs = h->block_size;
+    uint64_t total = h->max_size / bs;
+    uint64_t needed = (size + bs - 1) / bs;
+
+    if(needed > total){
+        return NULL;
+    }
+
+    uint64_t i = 0;
+    while(i + needed <= total){
+        uintptr_t addr = h->start_addr + i * bs;
+
+        //? this block's address isn't aligned, jump to the first block at or after the next aligned address
+        if(addr & (alignment - 1)){
+            uintptr_t aligned = (addr + alignment - 1) & ~((uintptr_t)alignment - 1);
+            i = (aligned - h->start_addr + bs - 1) / bs; //? always > i, so this makes progress
+            continue;
+        }
+
+        //? check that the whole run is free
+        bool run_free = true;
+        uint64_t j;
+        for(j = 0; j < needed; j++){
+            if(h->blocks[i + j].isAllocated){
+                run_free = false;
+                break;
+            }
+        }
+
+        if(!run_free){
+            //? skip past the allocation we collided with
+            uint64_t end = h->blocks[i + j].end_block;
+            i = (end > i + j) ? end : i + j + 1;
+            continue;
+        }
+
+        for(uint64_t f = i; f < i + needed; f++){
+            h->blocks[f].isAllocated = true;
+            h->blocks[f].start_block = i;
+            h->blocks[f].end_block = i + needed;
+        }
+
+        return (void*)addr;
+    }
+
+    return NULL;
+}
+
 void free(heap_t **heap, void *ptr){
     if(ptr == NULL){
         return;
@@ -144,6 +207,10 @@ void free(heap_t **heap, void *ptr){
 
 void* kalloc(size_t size){
     return alloc(&root_heap, size);
+}
+
+void* kalloc_aligned(size_t size, size_t align){
+    return alloc_aligned(&root_heap, size, align);
 }
 
 void kfree(void *ptr){
