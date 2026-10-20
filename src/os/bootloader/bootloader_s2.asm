@@ -8,6 +8,11 @@ PD1     equ 0x93000
 PD2     equ 0x94000
 PD3     equ 0x95000
 
+;! match these in S1 and kernel
+E820_MAP            equ 0x8F04
+E820_MAX_ENTRIES    equ 64
+E820_ENTRY_SIZE     equ 24
+
 protected_mode:
     mov ax, 0x18
 
@@ -21,7 +26,13 @@ protected_mode:
 
     call enable_ISA_extentions
 
-    mov esi, 0x1000
+    xor eax, eax
+    mov ax, word [E820_MAP]
+    mov ecx, E820_ENTRY_SIZE
+    mul ecx
+    add eax, E820_MAP
+
+    mov esi, eax
     mov edi, 0x120000
     mov ecx, SECTORS
     shl ecx, 7          ; ecx = number of dwords = SECTORS*128
@@ -38,7 +49,7 @@ protected_mode:
     jmp .copy_loop
 
 .copy_done:
-    mov [0x8F00], SECTORS
+    mov word [0x8F00], SECTORS
 
     ; ------------------------------------------------
     ; PML4[0] -> PDPT

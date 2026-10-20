@@ -1,6 +1,7 @@
 [ORG 0x7C00]
 [BITS 16]
 
+;! match these in S2 and kernel
 E820_MAP       equ 0x8F04
 E820_MAX_ENTRIES equ 64
 E820_ENTRY_SIZE equ 24
@@ -20,9 +21,15 @@ start:
     or  al, 2
     out 0x92, al
 
+    xor ax, ax
+    mov ax, word [E820_MAP]
+    mov cx, E820_ENTRY_SIZE
+    mul cx
+    add ax, E820_MAP
+
+    mov bx, ax
     mov ax, 0
     mov es, ax
-    mov bx, 0x1000
     mov ah, 0x02
     mov al, SECTORS
     mov ch, 0
