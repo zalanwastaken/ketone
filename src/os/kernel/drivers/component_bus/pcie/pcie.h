@@ -21,6 +21,11 @@ typedef struct {
     mcfg_entry_t entries[];
 } __attribute__((packed)) mcfg_t;
 
+typedef struct {
+    mcfg_entry_t MCFG_entry;
+} PCIE_driver_data;
+
+
 bool PCIE_init();
 component_device_t* PCIE_get_devices(size_t *devices_size);
 void PCIE_print_devices();

@@ -28,6 +28,101 @@ static inline void PCIE_write32(uint64_t base, uint8_t bus, uint8_t device, uint
     *(volatile uint32_t *)addr = value;
 }
 
+static inline uint16_t PCIE_read16(uint64_t base, uint8_t bus, uint8_t device, uint8_t function, uint16_t offset){
+    volatile uint16_t *addr = (volatile uint16_t *)pcie_config_addr(base, bus, device, function, offset);
+
+    return *addr;
+}
+
+static inline void PCIE_write16(uint64_t base, uint8_t bus, uint8_t device, uint8_t function, uint16_t offset, uint16_t value){
+    volatile uint16_t *addr = (volatile uint16_t *)pcie_config_addr(base, bus, device, function, offset);
+
+    *addr = value;
+}
+
+static bool PCIE_remap_BAR(component_device_t *device, uint8_t bar_IDX, uint64_t newBase){
+    if(bar_IDX >= 6){
+        return false;
+    }
+    if(!device->bar[bar_IDX].is_valid){
+        return false;
+    }
+
+    PCIE_driver_data *data = device->driver_data;
+    uint8_t offset = 0x10 + bar_IDX * 4;
+    uint16_t command = PCIE_read16(data->MCFG_entry.base_address, device->bus, device->device, device->function, 0x04);
+    uint32_t BAR_data = PCIE_read32(data->MCFG_entry.base_address, device->bus, device->device, device->function, offset);
+    uint32_t BAR_data_HIGH = 0;
+
+    uint32_t newLow = 0;
+    if(device->bar[bar_IDX].is_IO){
+        if(newBase > UINT32_MAX || (newBase & 3u) || newBase+device->bar[bar_IDX].bar_size > UINT32_MAX){
+            serial_printLN("PCIE BAR REMAP err: base too large");
+            return false;
+        }
+
+        newLow = (BAR_data & 3u) | ((uint32_t)newBase & ~3u);
+    }else{
+        uint64_t align_mask = device->bar[bar_IDX].bar_size - 1;
+        if(device->bar[bar_IDX].bar_size == 0){
+            serial_printLN("PCIE BAR REMAP err: size = 0");
+            return false;
+        }
+        if((newBase & align_mask)){
+            serial_printLN("PCIE BAR REMAP err: unaligned base");
+            return false;
+        }
+        if(!device->bar[bar_IDX].is_64_bits && newBase > UINT32_MAX || newBase+device->bar[bar_IDX].bar_size > UINT32_MAX){
+            serial_printLN("PCIE BAR REMAP err: base too large");
+            return false;
+        }
+
+        newLow = (BAR_data & 0xFu) | ((uint32_t)newBase & ~0xFu);
+    }
+
+    PCIE_write16(data->MCFG_entry.base_address, device->bus, device->device, device->function, 0x04, command & ~(uint16_t)3u); //? disable IO and mem decoding
+    if(device->bar[bar_IDX].is_64_bits){
+        BAR_data_HIGH = PCIE_read32(data->MCFG_entry.base_address, device->bus, device->device,device->function, offset+4);
+        PCIE_write32(data->MCFG_entry.base_address, device->bus, device->device, device->function, offset + 4, (uint32_t)(newBase >> 32));
+    }
+    PCIE_write32(data->MCFG_entry.base_address, device->bus, device->device, device->function, offset, newLow);
+
+    uint32_t checkLow = PCIE_read32(data->MCFG_entry.base_address, device->bus, device->device, device->function, offset);
+    uint32_t checkHigh = 0;
+
+    if(device->bar[bar_IDX].is_64_bits){
+        checkHigh = PCIE_read32(data->MCFG_entry.base_address, device->bus, device->device, device->function, offset + 4);
+    }
+
+    uint64_t actual;
+    if(device->bar[bar_IDX].is_IO){
+        actual = checkLow & ~3u;
+    }else if(device->bar[bar_IDX].is_64_bits){
+        actual = ((uint64_t)checkHigh << 32 | (checkLow & ~0xFu));
+    }else{
+        actual = checkLow & ~0xFu;
+    }
+
+    if(actual == newBase){
+        device->bar[bar_IDX].base = newBase;
+    }else{
+        if(device->bar[bar_IDX].is_64_bits){
+            PCIE_write32(data->MCFG_entry.base_address, device->bus, device->device, device->function, offset + 4, BAR_data_HIGH);
+        }
+        PCIE_write32(data->MCFG_entry.base_address, device->bus, device->device, device->function, offset, BAR_data);
+
+        PCIE_write16(data->MCFG_entry.base_address, device->bus, device->device, device->function, 0x04, command);
+
+        serial_printLN("PCIE BAR REMAP err: base not set");
+        return false;
+    }
+
+    device->bar[bar_IDX].base = newBase;
+    PCIE_write16(data->MCFG_entry.base_address, device->bus, device->device, device->function, 0x04, command);
+
+    return true;
+}
+
 bool PCIE_init(){
     mcfg_t *MCFG_a = (mcfg_t*)ACPI_get_table("MCFG");
     if(MCFG_a == NULL){
@@ -85,14 +180,15 @@ component_device_t* PCIE_get_devices(size_t *devices_size){
                         if(last_BAR_was_64){
                             last_BAR_was_64 = false;
                             is_vaild = false;
+                            is_64 = false;
                             goto done;
                         }
                         if(is_64){
                             BAR_data_HIGH = PCIE_read32(MCFG_entry->base_address, bus, device, function, offset+4);
                         }
 
-                        uint32_t command = PCIE_read32(MCFG_entry->base_address, bus, device, function, 0x04);
-                        PCIE_write32(MCFG_entry->base_address, bus, device, function, 0x04, command & ~3u); //? disable IO and mem decoding
+                        uint16_t command = PCIE_read16(MCFG_entry->base_address, bus, device, function, 0x04);
+                        PCIE_write16(MCFG_entry->base_address, bus, device, function, 0x04, command & ~3u); //? disable IO and mem decoding
 
                         PCIE_write32(MCFG_entry->base_address, bus, device, function, offset, 0xFFFFFFFFu);
                         if(is_64){
@@ -108,7 +204,7 @@ component_device_t* PCIE_get_devices(size_t *devices_size){
                         }
                         PCIE_write32(MCFG_entry->base_address, bus, device, function, offset, BAR_data);
 
-                        PCIE_write32(MCFG_entry->base_address, bus, device, function, 0x04, command); //? enable previosly disabled stuff
+                        PCIE_write16(MCFG_entry->base_address, bus, device, function, 0x04, command); //? enable previosly disabled stuff
 
                         if (is_io) {
                             uint32_t mask_c = mask & ~3u;
@@ -180,6 +276,9 @@ component_device_t* PCIE_get_devices(size_t *devices_size){
                     devices[devices_IDX].revision = revision;
                     devices[devices_IDX].subclass = subclass;
                     devices[devices_IDX].device_id = device_id;
+                    PCIE_driver_data *driver_data = (PCIE_driver_data*)kalloc(sizeof(PCIE_driver_data));
+                    memcpy(MCFG_entry, &(driver_data->MCFG_entry), sizeof(mcfg_entry_t));
+                    devices[devices_IDX].driver_data = driver_data;
                     devices_IDX++;
                 }
             }
@@ -192,6 +291,35 @@ component_device_t* PCIE_get_devices(size_t *devices_size){
         kfree(devices);
         devices = buff;
         *devices_size = devices_IDX;
+    }
+
+    for(uint32_t i = 0; i<(*devices_size); i++){
+        for(uint32_t f = 0; f<6; f++){
+            if(!devices[i].bar[f].is_valid || devices[i].bar[f].bar_size == 0){
+                //serial_printLN("invaild BAR");
+                continue;
+            }
+            void *BAR_buff = kalloc_aligned(devices[i].bar[f].bar_size, devices[i].bar[f].bar_size);
+            if(BAR_buff == NULL){
+                serial_print("BAR size: ");
+                serial_print_hex64LN(devices[i].bar[f].bar_size);
+                serial_printLN("cant find memory");
+                continue;
+            }
+            uint64_t old = devices[i].bar[f].base;
+            bool remapped = PCIE_remap_BAR(&(devices[i]), f, (uint64_t)BAR_buff);
+            uint64_t new = devices[i].bar[f].base;
+            if(remapped){
+                serial_printLN("BAR remapped");
+                serial_print_hex64(old);
+                serial_print(" TO ");
+                serial_print_hex64LN(new);
+                serial_printLN("----");
+            }else{
+                serial_printLN("BAR remap fail");
+                kfree(BAR_buff);
+            }
+        }
     }
 
     return devices;
