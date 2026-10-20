@@ -7,7 +7,6 @@
 #define KERNEL_START 0x120000
 
 #define E820_MAX_ENTRIES 64
-
 #define E820_USABLE       1
 #define E820_RESERVED     2
 #define E820_ACPI_RECLAIM 3
