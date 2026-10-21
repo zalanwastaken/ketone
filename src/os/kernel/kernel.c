@@ -19,8 +19,8 @@ void init(){
     *kernel_size_SECTORS += 4; //? some offset
     serial_print("Kernel size: ");
     serial_print_hexLN((*kernel_size_SECTORS)*512);
-    //?              1 GiB                                                128 MiB
-    mem_manager_init(0x40000000, *kernel_size_SECTORS, (uint32_t*)0x8F04, 0x8000000);
+    //?              1 GiB                                                256 MiB
+    mem_manager_init(0x40000000, *kernel_size_SECTORS, (uint32_t*)0x8F04, 0x10000000);
 
     uint32_t *kernel_size_SECTORS_new = (uint32_t*)kalloc(sizeof(uint32_t));
     *kernel_size_SECTORS_new = *kernel_size_SECTORS;
