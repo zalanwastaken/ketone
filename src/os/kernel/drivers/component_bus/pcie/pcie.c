@@ -3,7 +3,7 @@
 
 #include "../../../io/serial/serial.h"
 #include "../../../mem_manager/manager.h"
-#include "../../../mem_manager/utils.h"
+#include "../../../utils.h"
 
 static mcfg_t *MCFG = NULL;
 static uint32_t MCFG_entries = 0;
@@ -299,7 +299,7 @@ component_device_t* PCIE_get_devices(size_t *devices_size){
                 //serial_printLN("invaild BAR");
                 continue;
             }
-            void *BAR_buff = kalloc_aligned(devices[i].bar[f].bar_size, devices[i].bar[f].bar_size);
+            void *BAR_buff = low_kalloc_aligned(devices[i].bar[f].bar_size, devices[i].bar[f].bar_size);
             if(BAR_buff == NULL){
                 serial_print("BAR size: ");
                 serial_print_hex64LN(devices[i].bar[f].bar_size);
@@ -317,7 +317,7 @@ component_device_t* PCIE_get_devices(size_t *devices_size){
                 serial_printLN("----");
             }else{
                 serial_printLN("BAR remap fail");
-                kfree(BAR_buff);
+                low_kfree(BAR_buff);
             }
         }
     }
