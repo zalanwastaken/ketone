@@ -9,7 +9,7 @@ typedef struct{
     uint8_t  checksum;
     char     oem_id[6];
     uint8_t  revision;
-    uint32_t rsdt_address;
+    uint32_t *rsdt_address;
 
     //* ACPI 2.0+
     //? not used in this driver because QEMU uses SeaBios which is too old(sad)
