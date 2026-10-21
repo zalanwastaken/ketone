@@ -4,7 +4,9 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-typedef struct{ //! NOTE TO SELF: this uses a fuck ton of mem, optimise it !
+//TODO
+//! NOTE: this uses a fuck ton of mem, optimise it !
+typedef struct{
     bool isAllocated;
     uint32_t start_block;
     uint32_t end_block;
@@ -17,10 +19,13 @@ typedef struct{
     allocation_t *blocks;
 } heap_t;
 
-void mem_manager_init(size_t size, uint32_t kernel_size_SECTORS, uint32_t *e820_addr);
+void mem_manager_init(size_t size, uint32_t kernel_size_SECTORS, uint32_t *e820_addr, size_t low_heap_size);
 void* alloc(heap_t **heap, size_t size);
 void* alloc_aligned(heap_t **heap, size_t size, size_t alignment);
 void free(heap_t **heap, void *ptr);
 void* kalloc(size_t size);
+void* low_kalloc(size_t size);
 void* kalloc_aligned(size_t size, size_t align);
+void* low_kalloc_aligned(size_t size, size_t align);
 void kfree(void *ptr);
+void low_kfree(void *ptr);
