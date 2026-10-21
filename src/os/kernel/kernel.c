@@ -19,8 +19,8 @@ void init(){
     *kernel_size_SECTORS += 4; //? some offset
     serial_print("Kernel size: ");
     serial_print_hexLN((*kernel_size_SECTORS)*512);
-    //?              1 GiB                                                256 MiB
-    mem_manager_init(0x40000000, *kernel_size_SECTORS, (uint32_t*)0x8F04, 0x10000000);
+    //?              root heap: 1 GiB                                          256 MiB
+    mem_manager_init(0x40000000,      *kernel_size_SECTORS, (uint32_t*)0x8F04, 0x10000000);
 
     uint32_t *kernel_size_SECTORS_new = (uint32_t*)kalloc(sizeof(uint32_t));
     *kernel_size_SECTORS_new = *kernel_size_SECTORS;
@@ -81,7 +81,11 @@ void kernel_main(void){
         serial_print(":");
         serial_print_hex64(PCIE_devices[i].device);
         serial_print(".");
-        serial_print_hex64LN(PCIE_devices[i].function);
+        serial_print_hex64(PCIE_devices[i].function);
+        serial_print("      ");
+        serial_print(COMPONENT_vendor_name(PCIE_devices[i].vendor_id));
+        serial_print("      ");
+        serial_print_hexLN(PCIE_devices[i].vendor_id);
     }
 
     halt();

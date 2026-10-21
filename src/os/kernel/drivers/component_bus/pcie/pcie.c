@@ -276,6 +276,7 @@ component_device_t* PCIE_get_devices(size_t *devices_size){
                     devices[devices_IDX].revision = revision;
                     devices[devices_IDX].subclass = subclass;
                     devices[devices_IDX].device_id = device_id;
+                    devices[devices_IDX].vendor_id = vendor_id;
                     PCIE_driver_data *driver_data = (PCIE_driver_data*)kalloc(sizeof(PCIE_driver_data));
                     memcpy(MCFG_entry, &(driver_data->MCFG_entry), sizeof(mcfg_entry_t));
                     devices[devices_IDX].driver_data = driver_data;

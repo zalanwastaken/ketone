@@ -51,7 +51,7 @@ static const component_vendor_t vendors[] = {
     COMPONENT_VENDOR(0x13B5, "ARM"),
     COMPONENT_VENDOR(0x1AE0, "Google"),
     COMPONENT_VENDOR(0x1A03, "ASPEED"),
-    COMPONENT_VENDOR(0x1B36, "Red Hat"),
+    COMPONENT_VENDOR(0x1B36, "Red Hat/QEMU"),
     COMPONENT_VENDOR(0x1D0F, "Amazon"),
     COMPONENT_VENDOR(0x1DA8, "Ampere Computing"),
 
