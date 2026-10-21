@@ -28,7 +28,7 @@ start:
     add ax, E820_MAP
 
     mov bx, ax
-    mov ax, 0
+    xor ax, ax
     mov es, ax
     mov ah, 0x02
     mov al, SECTORS
@@ -41,7 +41,7 @@ start:
     cmp al, SECTORS
     jne disk_error
 
-    mov ax, 0
+    xor ax, ax
     mov es, ax
     mov bx, 0x7E00
     mov ah, 0x02
