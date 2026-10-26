@@ -300,7 +300,7 @@ component_device_t* PCIE_get_devices(size_t *devices_size){
                 //serial_printLN("invaild BAR");
                 continue;
             }
-            void *BAR_buff = low_kalloc_aligned(devices[i].bar[f].bar_size, devices[i].bar[f].bar_size);
+            void *BAR_buff = k_bump_alloc_aligned(devices[i].bar[f].bar_size, devices[i].bar[f].bar_size);
             if(BAR_buff == NULL){
                 serial_print("BAR size: ");
                 serial_print_hex64LN(devices[i].bar[f].bar_size);
@@ -318,7 +318,7 @@ component_device_t* PCIE_get_devices(size_t *devices_size){
                 serial_printLN("----");
             }else{
                 serial_printLN("BAR remap fail");
-                low_kfree(BAR_buff);
+                halt();
             }
         }
     }
