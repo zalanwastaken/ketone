@@ -25,8 +25,8 @@ typedef struct{
     size_t size;
 } bump_heap_t;
 
-void* bump_alloc(bump_heap_t **heap, size_t size);
-void* bump_alloc_aligned(bump_heap_t **heap, size_t size, size_t align);
+void* bump_alloc(bump_heap_t **heap, size_t size);                          //! MMIO only
+void* bump_alloc_aligned(bump_heap_t **heap, size_t size, size_t align);    //! MMIO only
 void* alloc(heap_t **heap, size_t size);
 void* alloc_aligned(heap_t **heap, size_t size, size_t alignment);
 void free(heap_t **heap, void *ptr);

@@ -42,3 +42,6 @@ typedef struct {
 } component_device_t;
 
 const char* COMPONENT_vendor_name(uint16_t vendor_id);
+bool component_bus_init();
+component_device_t* component_bus_get_devices(uint8_t class, uint8_t subclass, size_t *ret_size);
+component_device_t* component_bus_get_devicesEX(uint8_t class, uint8_t subclass, uint8_t prog_if, size_t *ret_size);
