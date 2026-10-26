@@ -9,12 +9,12 @@
 Because I can.
 
 ## Building
-Make sure you have the following things installed:
+Make sure you have the following packages installed:
 * nasm
 * gcc
 * make
-* qemu (not required for building but required for running, `make run`)
 * exfatprogs
+* qemu (not required for building but required for running, `make run`)
 
 Run the following to build
 ```bash
@@ -45,15 +45,16 @@ Planned areas include:
 * 🟩 ATA PIO driver
 * 🟩 Initial exFAT support
 * 🟨 More complete exFAT support
-* 🟨 ACPI
-* 🟥 PCI and PCIe
-* 🟥 SATA
+* 🟦 ACPI
+* 🟦 PCI and PCIe
+* 🟨 SATA
 * 🟥 Interrupt handling
 
 ### Key
 * 🟩 done
 * 🟨 doing
 * 🟥 to-do
+* 🟦 good enough for now
 
 This roadmap is intentionally subject to change because operating systems have a funny habit of turning a one-day task into a three-week side quest.
 
