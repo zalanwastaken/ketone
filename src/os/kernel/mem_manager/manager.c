@@ -1,6 +1,8 @@
 #include "manager.h"
 #include "../io/serial/serial.h"
 #include "../utils.h"
+#include "../drivers/acpi/acpi.h"
+
 
 #define MAPPED_LIMIT 0x100000000ULL
 
@@ -12,6 +14,23 @@
 #define E820_ACPI_RECLAIM 3
 #define E820_ACPI_NVS     4
 #define E820_BAD_MEMORY   5
+
+#define FOUR_GIB 0x100000000ULL
+#define MAX_RANGES (E820_MAX_ENTRIES + 8)
+
+typedef struct {
+    uint64_t base_address;
+    uint16_t segment_group;
+    uint8_t  start_bus;
+    uint8_t  end_bus;
+    uint32_t reserved;
+} __attribute__((packed)) mcfg_entry_t;
+
+typedef struct {
+    rsdt_header_t header;
+    uint8_t reserved[8];
+    mcfg_entry_t entries[];
+} __attribute__((packed)) mcfg_t;
 
 typedef struct __attribute__((packed)){
     uint64_t base;
@@ -25,11 +44,20 @@ typedef struct __attribute__((packed)){
     e820_entry entries[E820_MAX_ENTRIES];
 } e820_map;
 
+typedef struct{
+    uint64_t base;
+    uint64_t end;
+}range_t;
+
+static range_t ranges[MAX_RANGES];
+static int range_count;
+
 static heap_t *root_heap = NULL;
 static heap_t *low_heap = NULL;
+static bump_heap_t *bump_heap = NULL;
 static e820_map *memory_map = NULL;
 
-bool e820_find_region(uint32_t type, uint64_t min_size, uint64_t min_addr, uint64_t max_addr, uint64_t align, uint64_t *out_base, uint64_t *out_size){
+static bool e820_find_region(uint32_t type, uint64_t min_size, uint64_t min_addr, uint64_t max_addr, uint64_t align, uint64_t *out_base, uint64_t *out_size){
     if (memory_map == NULL){
         return false;
     }
@@ -77,6 +105,68 @@ bool e820_find_region(uint32_t type, uint64_t min_size, uint64_t min_addr, uint6
     }
 
     return false;
+}
+
+static void range_add(uint64_t base, uint64_t end){
+    if (base >= FOUR_GIB || end <= base || range_count >= MAX_RANGES) return;
+    if (end > FOUR_GIB) end = FOUR_GIB;
+    ranges[range_count++] = (range_t){ base, end };
+}
+
+static bool find_mmio_hole(uint64_t *out_base, uint64_t *out_end){
+    range_count = 0;
+
+    // 1. every E820 entry, regardless of type
+    for (uint16_t i = 0; i < memory_map->count; i++) {
+        e820_entry *e = &memory_map->entries[i];
+        range_add(e->base, e->base + e->length);
+    }
+
+    // 2. fixed devices that E820 usually doesn't list
+    range_add(0xFEC00000, 0xFEC01000);   // I/O APIC
+    range_add(0xFED00000, 0xFED00400);   // HPET
+    range_add(0xFEE00000, 0xFEE01000);   // local APIC
+    range_add(0xFFC00000, FOUR_GIB);     // firmware flash
+    mcfg_t *mcfg = (mcfg_t*)ACPI_get_table("MCFG");
+    uint32_t n = (mcfg->header.length - sizeof(rsdt_header_t)) / sizeof(mcfg_entry_t);
+    mcfg_entry_t *e = (mcfg_entry_t*)((uint8_t*)mcfg + sizeof(rsdt_header_t));
+
+    for (uint32_t i = 0; i < n; i++) {
+        uint64_t base = e[i].base_address + ((uint64_t)e[i].start_bus << 20);
+        uint64_t end  = e[i].base_address + (((uint64_t)e[i].end_bus + 1) << 20);
+        range_add(base, end);
+
+        serial_print("ECAM seg ");  serial_print_hexLN(e[i].segment_group);
+        serial_print_hex64LN(base);
+        serial_print_hex64LN(end);
+    }
+
+    // 3. insertion sort by base (at most ~70 entries)
+    for (int i = 1; i < range_count; i++) {
+        range_t key = ranges[i];
+        int j = i - 1;
+        while (j >= 0 && ranges[j].base > key.base) { ranges[j + 1] = ranges[j]; j--; }
+        ranges[j + 1] = key;
+    }
+
+    // 4. walk and track the largest gap
+    uint64_t cursor = 0, best_base = 0, best_size = 0;
+    for (int i = 0; i < range_count; i++) {
+        if (ranges[i].base > cursor && ranges[i].base - cursor > best_size) {
+            best_base = cursor;
+            best_size = ranges[i].base - cursor;
+        }
+        if (ranges[i].end > cursor) cursor = ranges[i].end;
+    }
+    if (FOUR_GIB > cursor && FOUR_GIB - cursor > best_size) {
+        best_base = cursor;
+        best_size = FOUR_GIB - cursor;
+    }
+
+    if (best_size == 0) return false;
+    *out_base = best_base;
+    *out_end  = best_base + best_size;
+    return true;
 }
 
 static bool low_heap_init(size_t low_heap_size){
@@ -191,132 +281,25 @@ void mem_manager_init(size_t size, uint32_t kernel_size_SECTORS, uint32_t *e820_
         serial_printLN("MEMORY MAN: Unable to setup low heap");
         halt();
     }
-}
 
-void* alloc(heap_t **heap, size_t size){
-    if(size == 0){
-        return NULL;
+    uint64_t start_hole = 0;
+    uint64_t end_hole = 0;
+    bool success = find_mmio_hole(&start_hole, &end_hole);
+    if(success){
+        serial_print("MMIO hole start: ");
+        serial_print_hex64LN(start_hole);
+        serial_print("MMIO hole end: ");
+        serial_print_hex64LN(end_hole);
+    }else{
+        serial_printLN("MEMORY MAN: unable to find MMIO hole");
+        halt();
     }
 
-    uint64_t needed = (size + (*heap)->block_size - 1) / (*heap)->block_size; //? this is a truncating division
-    int64_t start = -1; //? used -1 here because start cannot be in -ve so -1 here means no valid start was found
-    uint64_t i = 0;
+    bump_heap = (bump_heap_t*)kalloc(sizeof(bump_heap_t));
 
-    while ((*heap)->max_size / (*heap)->block_size > i){
-        if ((*heap)->blocks[i].isAllocated == false){
-            bool free = true;
-            for (uint64_t j = 0; j < needed; j++){
-                if ((*heap)->blocks[i + j].isAllocated){
-                    free = false;
-                    break;
-                }
-            }
-
-            if (free){
-                start = i;
-                break;
-            }
-            i++;
-        }else{
-            start = -1;
-            if ((*heap)->blocks[i].end_block > i){
-                i = (*heap)->blocks[i].end_block;
-            }else{
-                i++;
-            }
-            continue;
-        }
-        i++;
-    }
-
-    if(start == -1){
-        return NULL;
-    }
-
-    for(uint64_t f = start; f<start+needed; f++){
-        (*heap)->blocks[f].isAllocated = true;
-        (*heap)->blocks[f].start_block = start;
-        (*heap)->blocks[f].end_block = start+needed;
-    }
-
-    return (void*)((*heap)->start_addr+(start*(*heap)->block_size));
-}
-
-void* alloc_aligned(heap_t **heap, size_t size, size_t alignment){
-    if(size == 0){
-        return NULL;
-    }
-    if(alignment == 0){
-        alignment = 1;
-    }
-    if(alignment & (alignment - 1)){
-        return NULL; //? alignment must be a power of two
-    }
-
-    heap_t *h = *heap;
-    uint64_t bs = h->block_size;
-    uint64_t total = h->max_size / bs;
-    uint64_t needed = (size + bs - 1) / bs;
-
-    if(needed > total){
-        return NULL;
-    }
-
-    uint64_t i = 0;
-    while(i + needed <= total){
-        uintptr_t addr = h->start_addr + i * bs;
-
-        //? this block's address isn't aligned, jump to the first block at or after the next aligned address
-        if(addr & (alignment - 1)){
-            uintptr_t aligned = (addr + alignment - 1) & ~((uintptr_t)alignment - 1);
-            i = (aligned - h->start_addr + bs - 1) / bs; //? always > i, so this makes progress
-            continue;
-        }
-
-        //? check that the whole run is free
-        bool run_free = true;
-        uint64_t j;
-        for(j = 0; j < needed; j++){
-            if(h->blocks[i + j].isAllocated){
-                run_free = false;
-                break;
-            }
-        }
-
-        if(!run_free){
-            //? skip past the allocation we collided with
-            uint64_t end = h->blocks[i + j].end_block;
-            i = (end > i + j) ? end : i + j + 1;
-            continue;
-        }
-
-        for(uint64_t f = i; f < i + needed; f++){
-            h->blocks[f].isAllocated = true;
-            h->blocks[f].start_block = i;
-            h->blocks[f].end_block = i + needed;
-        }
-
-        return (void*)addr;
-    }
-
-    return NULL;
-}
-
-void free(heap_t **heap, void *ptr){
-    if(ptr == NULL){
-        return;
-    }
-
-    uint64_t block = (uint64_t)ptr;
-    block -= (*heap)->start_addr;
-    block = block/(*heap)->block_size;
-    uint64_t end = (*heap)->blocks[block].end_block;
-
-    for(uint64_t i=block; i<end; i++){
-        (*heap)->blocks[i].isAllocated = false;
-        (*heap)->blocks[i].start_block = 0;
-        (*heap)->blocks[i].end_block = 0;
-    }
+    bump_heap->start = start_hole;
+    bump_heap->size = end_hole-start_hole;
+    bump_heap->next = start_hole;
 }
 
 void* kalloc(size_t size){
@@ -341,4 +324,12 @@ void kfree(void *ptr){
 
 void low_kfree(void *ptr){
     free(&low_heap, ptr);
+}
+
+void* k_bump_alloc(size_t size){
+    return bump_alloc(&bump_heap, size);
+}
+
+void* k_bump_alloc_aligned(size_t size, size_t align){
+    bump_alloc_aligned(&bump_heap, size, align);
 }

@@ -10,6 +10,8 @@
 #include "drivers/fs/exfat/exfat.h"
 #include "drivers/acpi/acpi.h"
 #include "drivers/component_bus/pcie/pcie.h"
+#include "drivers/component_bus/common.h"
+#include "drivers/disk/sata/sata.h"
 
 uint32_t *kernel_size_SECTORS = (uint32_t*)0x8F00; //? placed here by the bootloader
 
@@ -19,6 +21,10 @@ void init(){
     *kernel_size_SECTORS += 4; //? some offset
     serial_print("Kernel size: ");
     serial_print_hexLN((*kernel_size_SECTORS)*512);
+    if(!ACPI_init()){
+        serial_printLN("ACPI init fail !");
+        halt();
+    }
     //?              root heap: 1 GiB                                          256 MiB
     mem_manager_init(0x40000000,      *kernel_size_SECTORS, (uint32_t*)0x8F04, 0x10000000);
 
@@ -26,8 +32,8 @@ void init(){
     *kernel_size_SECTORS_new = *kernel_size_SECTORS;
     kernel_size_SECTORS = kernel_size_SECTORS_new;
 
-    if(ACPI_init() == false){
-        serial_printLN("ACPI init fail !");
+    if(!component_bus_init()){
+        serial_printLN("component bus init fail !");
         halt();
     }
 }
@@ -35,8 +41,6 @@ void init(){
 __attribute__((section(".start")))
 void kernel_main(void){
     init();
-
-    /*
 
     disk_device_t** drives = get_disk_devices(DEVICE_TYPE_ATA);
     for(uint64_t i = 0; i<4; i++){
@@ -69,8 +73,8 @@ void kernel_main(void){
             }
         }
     }
-    */
 
+    /*
     PCIE_init();
     //PCIE_print_devices();
     size_t got = 0;
@@ -87,6 +91,11 @@ void kernel_main(void){
         serial_print("      ");
         serial_print_hexLN(PCIE_devices[i].vendor_id);
     }
+    */
+
+    PCIE_print_devices();
+
+    SATA_init();
 
     halt();
 }
