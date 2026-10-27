@@ -36,3 +36,8 @@ void memcpy(void *src, void *dest, size_t size){
     }
 }
 
+void memset(void *ptr, uint8_t c, size_t n){
+    for(uint64_t i = (uint64_t)ptr; i<(uint64_t)ptr+n; i++){
+        ((uint8_t*)ptr)[i] = c;
+    }
+}
