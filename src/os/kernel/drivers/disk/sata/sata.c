@@ -12,7 +12,7 @@
 //#define CMD_SATA_READ_PIO_EXT    0x24
 //#define CMD_SATA_WRITE_PIO       0x30
 //#define CMD_SATA_WRITE_PIO_EXT   0x34
-#define CMD_SATA_WRITE_DMA_EXT      0x24
+#define CMD_SATA_READ_DMA_EXT      0x24
 #define CMD_SATA_IDENTIFY           0xEC
 #define CMD_SATA_IDENTIFY_PACKET    0xA1
 #define CMD_SATA_FLUSH              0xE7
@@ -281,6 +281,9 @@ disk_device_t** SATA_get_disks(size_t *size){
                     dev->driver_data = data;
                     memcpy(name, dev->name, sizeof(char)*41);
 
+                    kfree(name);
+                    low_kfree(id_buff);
+
                     serial_print("SATA: fount SATA device !: ");
                     serial_print_hex(sig);
                     serial_print("  ");
@@ -330,7 +333,7 @@ bool SATA_read(disk_device_t *disk, uint64_t lba, uint16_t *buff) {
 
     fis.fis_type = 0x27;
     fis.pmport_c = 0x80;
-    fis.command = CMD_SATA_WRITE_DMA_EXT; // READ DMA EXT
+    fis.command = CMD_SATA_READ_DMA_EXT;
 
     fis.lba0 = (uint8_t)(lba);
     fis.lba1 = (uint8_t)(lba >> 8);
