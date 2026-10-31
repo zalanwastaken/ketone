@@ -3,7 +3,6 @@
 #include "io/serial/serial.h"
 #include "mem_manager/manager.h"
 #include "utils.h"
-//#include "mem_manager/utils.h"
 
 #include "drivers/disk/common.h"
 #include "drivers/fs/mbr/mbr.h"
@@ -42,9 +41,10 @@ __attribute__((section(".start")))
 void kernel_main(void){
     init();
 
-    disk_device_t** drives = get_disk_devices(DEVICE_TYPE_ATA);
-    for(uint64_t i = 0; i<4; i++){
-        if(drives[i]->type != DEVICE_TYPE_NONE){
+    size_t size_disk_devices = 0;
+    disk_device_t** drives = get_disk_devices(DISK_SATA, &size_disk_devices);
+    for(uint64_t i = 0; i<size_disk_devices; i++){
+        if(drives[i]->type != DISK_NONE){
             serial_print_hexLN(i);
             serial_printLN(drives[i]->name);
             mbr_partition_t **partitions = (mbr_partition_t**)kalloc(sizeof(mbr_partition_t**)*4); 
@@ -93,9 +93,7 @@ void kernel_main(void){
     }
     */
 
-    PCIE_print_devices();
-
-    SATA_init();
+    //PCIE_print_devices();
 
     halt();
 }

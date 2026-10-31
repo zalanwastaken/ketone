@@ -47,7 +47,7 @@ Planned areas include:
 * 🟨 More complete exFAT support
 * 🟦 ACPI
 * 🟦 PCI and PCIe
-* 🟨 SATA
+* 🟩 SATA
 * 🟥 Interrupt handling
 
 ### Key
