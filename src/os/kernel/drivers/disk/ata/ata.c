@@ -28,13 +28,12 @@
 #define CMD_ATA_FLUSH           0xE7
 #define CMD_ATA_FLUSH_EXT       0xEA
 
-void ata_swap_word(uint16_t word, char *a, char *b){
+static void ata_swap_word(uint16_t word, char *a, char *b){
     *a = (char)(word >> 8);
     *b = (char)(word & 0xFF);
 }
 
-uint8_t wait_for_drive(uint32_t chann){
-
+static uint8_t wait_for_drive(uint32_t chann){
     uint8_t status = inb(chann + CHANN_STATUS);
 
     while (status & 0x80) {
@@ -44,7 +43,7 @@ uint8_t wait_for_drive(uint32_t chann){
     return status;
 }
 
-uint8_t wait_for_data(uint32_t chann){
+static uint8_t wait_for_data(uint32_t chann){
     uint8_t status = 0;
 
     for (uint32_t timeout = 0; timeout < 1000000; timeout++) {
@@ -71,17 +70,17 @@ disk_device_t* ATA_identify(uint32_t chann, uint32_t sub){
 
     if(status & 0x01){
         serial_print("ATA Identify fail\n");
-        device->type = DEVICE_TYPE_NONE;
+        device->type = DISK_NONE;
         return device;
     }
 
     if (!(status & 0x08)){
         serial_print("ATA Identify: no data\n");
-        device->type = DEVICE_TYPE_NONE;
+        device->type = DISK_NONE;
         return device;
     }
 
-    device->type = DEVICE_TYPE_ATA;
+    device->type = DISK_ATA;
 
     ATA_driver_data *driver_data = kalloc(sizeof(ATA_driver_data)*1);
     device->driver_data = driver_data;
